@@ -27,11 +27,6 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: 'react-native/package-lock.json'
-
-      - name: Install React Native Dependencies
-        working-directory: ./react-native
-        run: npm install --legacy-peer-deps
 
       - name: Build Web Application Bundle
         run: |
@@ -39,18 +34,6 @@ jobs:
           npm run build
           mkdir -p react-native/android/app/src/main/assets/web
           cp -r dist/* react-native/android/app/src/main/assets/web/
-
-      - name: Bundle Offline React Native JS Bundle
-        working-directory: ./react-native
-        run: |
-          mkdir -p android/app/src/main/assets
-          npx @react-native-community/cli bundle --platform android --dev false --entry-file index.js --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res
-
-      - name: Link node_modules across build paths
-        run: |
-          ln -s react-native/node_modules node_modules || true
-          mkdir -p react-native/android
-          ln -s ../node_modules react-native/android/node_modules || true
 
       - name: Accept Android SDK Licenses
         run: |

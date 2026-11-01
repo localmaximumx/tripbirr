@@ -1,33 +1,33 @@
 package com.tripbirr.sms
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import android.os.Build
 import android.provider.Telephony
-import com.facebook.react.ReactApplication
-import com.facebook.react.modules.core.DeviceEventManagerModule
-import com.facebook.react.bridge.Arguments
+import androidx.core.app.NotificationCompat
 import java.security.MessageDigest
 
 /**
  * Native Android BroadcastReceiver for Telebirr incoming SMS messages (Sender ID 127).
  *
- * Reliability guarantees:
- * 1. Works even when the React Native JavaScript runtime is killed or device just restarted.
- * 2. Filters strictly for sender "127" (never reads or uploads unrelated personal inbox messages).
- * 3. Concatenates multi-part SMS PDUs arriving in a single broadcast.
- * 4. Computes a deterministic SHA-256 fingerprint and persists to an offline SQLite native queue
- *    with UNIQUE conflict resolution so duplicate broadcasts are never processed twice.
- * 5. Forwards to the React Native bridge immediately if the JS context is active.
+ * Guarantees:
+ * 1. Works 100% offline even when the app is closed or killed in background.
+ * 2. Filters strictly for sender "127" (never reads personal SMS).
+ * 3. Enqueues to local SQLite and triggers an instant heads-up notification.
+ * 4. Broadcasts internal event so MainActivity can update UI in real-time.
  */
 class SmsReceiver : BroadcastReceiver() {
 
     companion object {
         const val TELEBIRR_SENDER_ID = "127"
-        const val EVENT_TELEBIRR_SMS_RECEIVED = "TripBirrSmsReceived"
+        const val ACTION_NEW_TELEBIRR_SMS = "com.tripbirr.NEW_TELEBIRR_SMS"
+        const val NOTIFICATION_CHANNEL_ID = "tripbirr_sms_payments"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -42,7 +42,6 @@ class SmsReceiver : BroadcastReceiver() {
         if (!senderAddress.equals(TELEBIRR_SENDER_ID, ignoreCase = true) &&
             !senderAddress.equals("telebirr", ignoreCase = true)
         ) {
-            // Privacy guardrail: immediately ignore any SMS not from Telebirr 127
             return
         }
 
@@ -56,7 +55,7 @@ class SmsReceiver : BroadcastReceiver() {
         val timestampMs = messages[0].timestampMillis
         val fingerprint = sha256("$senderAddress|$timestampMs|${messageBody.lowercase()}")
 
-        // 1. Persist synchronously to native SQLite queue before JS bridge dispatch
+        // 1. Enqueue to SQLite
         val queueHelper = NativeSmsQueueDbHelper(context.applicationContext)
         val inserted = queueHelper.enqueueSms(
             fingerprint = fingerprint,
@@ -66,33 +65,53 @@ class SmsReceiver : BroadcastReceiver() {
         )
 
         if (!inserted) {
-            // Already queued/processed (duplicate broadcast prevented)
             return
         }
 
-        // 2. Attempt immediate dispatch to React Native if JS runtime is alive
+        // 2. Send internal broadcast to foreground MainActivity
         try {
-            val reactApp = context.applicationContext as? ReactApplication
-            val reactContext = reactApp
-                ?.reactNativeHost
-                ?.reactInstanceManager
-                ?.currentReactContext
-
-            if (reactContext != null) {
-                val payload = Arguments.createMap().apply {
-                    putString("fingerprint", fingerprint)
-                    putString("senderId", senderAddress)
-                    putString("body", messageBody)
-                    putDouble("receivedAtMs", timestampMs.toDouble())
-                }
-                reactContext
-                    .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                    ?.emit(EVENT_TELEBIRR_SMS_RECEIVED, payload)
+            val notifyIntent = Intent(ACTION_NEW_TELEBIRR_SMS).apply {
+                setPackage(context.packageName)
+                putExtra("senderId", senderAddress)
+                putExtra("body", messageBody)
+                putExtra("timestamp", timestampMs)
+                putExtra("fingerprint", fingerprint)
             }
+            context.sendBroadcast(notifyIntent)
         } catch (_: Throwable) {
-            // Safe fallback: message remains safely persisted in NativeSmsQueueDbHelper
-            // and will be drained via SmsModule.drainPendingSmsQueue() when app opens.
         }
+
+        // 3. Post system heads-up notification
+        try {
+            showNotification(context, messageBody)
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun showNotification(context: Context, body: String) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                NOTIFICATION_CHANNEL_ID,
+                "Telebirr Payments",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Incoming Telebirr passenger payments"
+                enableVibration(true)
+            }
+            manager.createNotificationChannel(channel)
+        }
+
+        val notification = NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setContentTitle("Telebirr 127 Payment Detected")
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+
+        manager.notify((System.currentTimeMillis() % 100000).toInt(), notification)
     }
 
     private fun sha256(input: String): String {
