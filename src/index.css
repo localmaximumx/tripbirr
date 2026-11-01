@@ -1,0 +1,43 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --bg-canvas: #F5F7F5;
+    --bg-surface: #FFFFFF;
+    --text-primary: #172B25;
+    --text-secondary: #75847D;
+    --border-subtle: #E3EAE5;
+    --brand-dark: #123C35;
+    --brand-primary: #16866A;
+    --brand-mint: #DDF5E9;
+    --status-success: #22A06B;
+    --status-warning: #E9A23B;
+    --status-error: #D9534F;
+  }
+
+  .dark {
+    --bg-canvas: #101A17;
+    --bg-surface: #192722;
+    --text-primary: #EDF6F0;
+    --text-secondary: #94A8A0;
+    --border-subtle: #253831;
+    --brand-dark: #192722;
+    --brand-primary: #43C99A;
+    --brand-mint: #1D352D;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+  }
+
+  .font-mono,
+  .tabular-nums {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}

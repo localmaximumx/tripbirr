@@ -1,0 +1,6 @@
+{
+  "name": "TripBirr — Telebirr Driver Companion",
+  "description": "Offline-first Android companion for Ethiopian drivers to automatically detect Telebirr 127 SMS payments, associate payments with trips, and track per-trip earnings.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
