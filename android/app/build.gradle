@@ -3,11 +3,11 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
 react {
-    root = file("../react-native")
-    reactNativeDir = file("../react-native/node_modules/react-native")
-    codegenDir = file("../react-native/node_modules/@react-native/codegen")
-    cliFile = file("../react-native/node_modules/react-native/cli.js")
-    entryFile = file("../react-native/index.js")
+    root = file("../../react-native")
+    reactNativeDir = file("../../react-native/node_modules/react-native")
+    codegenDir = file("../../react-native/node_modules/@react-native/codegen")
+    cliFile = file("../../react-native/node_modules/react-native/cli.js")
+    entryFile = file("../../react-native/index.js")
 }
 
 android {

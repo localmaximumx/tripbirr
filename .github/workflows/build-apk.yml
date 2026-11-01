@@ -33,6 +33,12 @@ jobs:
         working-directory: ./react-native
         run: npm install --legacy-peer-deps
 
+      - name: Link node_modules across build paths
+        run: |
+          ln -s react-native/node_modules node_modules || true
+          mkdir -p react-native/android
+          ln -s ../node_modules react-native/android/node_modules || true
+
       - name: Accept Android SDK Licenses
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
