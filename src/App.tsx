@@ -29,6 +29,7 @@ import { TripActionModal } from './components/TripActionModal';
 import { ManualCashModal } from './components/ManualCashModal';
 import { SmsSimulatorDrawer } from './components/SmsSimulatorDrawer';
 import { DriverProfileModal } from './components/DriverProfileModal';
+import { FirstLaunchModal } from './components/FirstLaunchModal';
 import {
   formatMinorUnits,
   formatPayerName,
@@ -65,6 +66,7 @@ export default function App() {
   const [isCashModalOpen, setIsCashModalOpen] = useState(false);
   const [isSmsSimulatorOpen, setIsSmsSimulatorOpen] = useState(false);
   const [isDriverProfileOpen, setIsDriverProfileOpen] = useState(false);
+  const [isFirstLaunchOpen, setIsFirstLaunchOpen] = useState(settings.first_launch_completed === false);
 
   const activeTrip = trips.find((t) => t.status === TripStatus.ACTIVE) || null;
   const selectedTrip = selectedTripId
@@ -269,6 +271,7 @@ export default function App() {
               onOpenTripModal={(mode) => setTripModalMode(mode)}
               onOpenCashModal={handleOpenCashModal}
               onOpenSmsSimulator={() => setIsSmsSimulatorOpen(true)}
+              onOpenFirstLaunch={() => setIsFirstLaunchOpen(true)}
             />
           )}
           {activeTab === 'trips' && (
@@ -290,6 +293,7 @@ export default function App() {
             <SettingsScreen
               onOpenDriverProfile={() => setIsDriverProfileOpen(true)}
               onOpenSmsSimulator={() => setIsSmsSimulatorOpen(true)}
+              onOpenFirstLaunch={() => setIsFirstLaunchOpen(true)}
             />
           )}
         </main>
@@ -372,6 +376,11 @@ export default function App() {
       <DriverProfileModal
         isOpen={isDriverProfileOpen}
         onClose={() => setIsDriverProfileOpen(false)}
+      />
+      <FirstLaunchModal
+        isOpen={isFirstLaunchOpen}
+        onClose={() => setIsFirstLaunchOpen(false)}
+        onAccept={() => setIsFirstLaunchOpen(false)}
       />
     </div>
   );

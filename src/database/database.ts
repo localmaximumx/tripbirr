@@ -57,6 +57,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   language: 'en',
   theme: 'dark',
   schema_version: CURRENT_SCHEMA_VERSION,
+  first_launch_completed: false,
   privacy_hide_balance: false,
   privacy_mask_sender_names: false,
   privacy_mask_phones: false,
@@ -1111,6 +1112,7 @@ export function loadDatabaseFromStorage(): DatabaseState {
         Boolean(parsed.settings?.privacy_hide_balance)
       ),
       schema_version: CURRENT_SCHEMA_VERSION,
+  first_launch_completed: false,
     };
     if (!parsed.schemaVersion || parsed.schemaVersion < CURRENT_SCHEMA_VERSION) {
       parsed.schemaVersion = CURRENT_SCHEMA_VERSION;

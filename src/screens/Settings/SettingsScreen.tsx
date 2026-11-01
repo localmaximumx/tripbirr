@@ -33,10 +33,12 @@ import { ThemeToggleButton } from '../../components/ThemeToggleButton';
 interface SettingsScreenProps {
   onOpenDriverProfile: () => void;
   onOpenSmsSimulator?: () => void;
+  onOpenFirstLaunch?: () => void;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onOpenDriverProfile,
+  onOpenFirstLaunch,
 }) => {
   const {
     schemaVersion,
@@ -448,6 +450,17 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               Icon
             </a>
           </div>
+
+          {onOpenFirstLaunch && (
+            <button
+              type="button"
+              onClick={onOpenFirstLaunch}
+              className="w-full mt-3 py-2.5 px-3 rounded-xl bg-[#2CD48D]/15 hover:bg-[#2CD48D]/25 text-[#2CD48D] text-xs font-extrabold flex items-center justify-center gap-2 border border-[#2CD48D]/30 transition-all cursor-pointer"
+            >
+              <Shield className="w-4 h-4" />
+              <span>Review First Launch / Permissions Guide</span>
+            </button>
+          )}
 
           {/* Professional Mission Statement */}
           <p className="text-xs text-[#8E9BAE] leading-relaxed">

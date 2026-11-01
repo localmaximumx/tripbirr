@@ -1,67 +1,49 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
   <defs>
     <linearGradient id="tbBg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stopColor="#164A41" />
-      <stop offset="55%" stopColor="#123C35" />
-      <stop offset="100%" stopColor="#0A231E" />
+      <stop offset="0%" stopColor="#151D2F" />
+      <stop offset="60%" stopColor="#0D1322" />
+      <stop offset="100%" stopColor="#080C16" />
     </linearGradient>
-    <linearGradient id="tbMint" x1="120" y1="96" x2="392" y2="416" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stopColor="#6BF0C0" />
-      <stop offset="50%" stopColor="#43C99A" />
-      <stop offset="100%" stopColor="#16866A" />
+    <linearGradient id="tbPin" x1="160" y1="80" x2="352" y2="380" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#3EE8A2" />
+      <stop offset="100%" stopColor="#18BE7E" />
     </linearGradient>
-    <linearGradient id="tbGold" x1="180" y1="100" x2="360" y2="340" gradientUnits="userSpaceOnUse">
+    <linearGradient id="tbGold" x1="200" y1="140" x2="312" y2="260" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stopColor="#FFE082" />
-      <stop offset="100%" stopColor="#F4B740" />
+      <stop offset="100%" stopColor="#FFC132" />
     </linearGradient>
-    <radialGradient id="tbGlow" cx="256" cy="210" r="210" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stopColor="#43C99A" stopOpacity="0.28" />
-      <stop offset="100%" stopColor="#43C99A" stopOpacity="0" />
-    </radialGradient>
   </defs>
 
-  <!-- Android Adaptive Squircle Base -->
-  <rect x="16" y="16" width="480" height="480" rx="116" fill="url(#tbBg)" />
-  <rect x="20" y="20" width="472" height="472" rx="112" stroke="#43C99A" strokeOpacity="0.28" strokeWidth="4" />
+  <!-- Base Squircle -->
+  <rect x="16" y="16" width="480" height="480" rx="118" fill="url(#tbBg)" />
+  <rect x="20" y="20" width="472" height="472" rx="114" stroke="#1E293B" stroke-width="4" />
 
-  <!-- Subtle Radial Glow -->
-  <circle cx="256" cy="210" r="210" fill="url(#tbGlow)" />
+  <!-- 4 Waypoint Trail Dots Under Pin Tip -->
+  <circle cx="170" cy="426" r="16" fill="#60A5FA" />
+  <circle cx="218" cy="410" r="16" fill="#60A5FA" />
+  <circle cx="294" cy="410" r="16" fill="#60A5FA" />
+  <circle cx="342" cy="426" r="16" fill="#60A5FA" />
 
-  <!-- Topographic Addis Route Grid Lines -->
-  <path d="M56 360 C150 320, 360 400, 456 330" stroke="#43C99A" strokeOpacity="0.12" strokeWidth="6" strokeLinecap="round" strokeDasharray="10 14" />
-  <path d="M72 150 C180 190, 330 110, 440 165" stroke="#43C99A" strokeOpacity="0.1" strokeWidth="4" strokeLinecap="round" />
-
-  <!-- Wireless Telebirr Payment Signal Arcs (Top Right) -->
-  <path d="M336 122 A 76 76 0 0 1 394 180" stroke="url(#tbGold)" strokeWidth="12" strokeLinecap="round" />
-  <path d="M352 94 A 112 112 0 0 1 422 164" stroke="url(#tbGold)" strokeOpacity="0.65" strokeWidth="10" strokeLinecap="round" />
-
-  <!-- Dynamic Highway Ribbon Swooshing from Bottom Left to Center Pin -->
+  <!-- Green Location Pin -->
   <path
-    d="M116 404 C138 334, 198 316, 256 290 C314 264, 356 232, 356 184 C356 128.77, 311.23 84, 256 84 C200.77 84, 156 128.77, 156 184 C156 238, 206 276, 256 336 C284 370, 306 394, 392 404"
-    stroke="url(#tbMint)"
-    strokeWidth="36"
-    strokeLinecap="round"
-    strokeLinejoin="round"
+    d="M256 100 C188 100, 134 154, 134 222 C134 300, 256 414, 256 414 C256 414, 378 300, 378 222 C378 154, 324 100, 256 100 Z"
+    fill="url(#tbPin)"
   />
 
-  <!-- Center GPS Navigation Pin Shield -->
-  <path
-    d="M256 92 C205.2 92, 164 133.2, 164 184 C164 242.5, 256 332, 256 332 C256 332, 348 242.5, 348 184 C348 133.2, 306.8 92, 256 92 Z"
-    fill="url(#tbMint)"
-  />
+  <!-- Golden Sun Circle -->
+  <circle cx="256" cy="216" r="62" fill="url(#tbGold)" />
 
-  <!-- Inner Deep Emerald Cutout with Gold Birr / Navigation Compass Emblem -->
-  <circle cx="256" cy="184" r="56" fill="#0E2F29" />
-  <circle cx="256" cy="184" r="52" stroke="url(#tbGold)" strokeOpacity="0.4" strokeWidth="2.5" />
-
-  <!-- Stylized 'TB' / North-East Navigation Arrow Inside Pin -->
-  <path
-    d="M234 206 L256 146 L278 206 L256 193 Z"
-    fill="url(#tbGold)"
-  />
-
-  <!-- Bottom Highway Lane Dashes -->
-  <circle cx="156" cy="396" r="10" fill="#FFE082" />
-  <circle cx="256" cy="412" r="7" fill="#43C99A" fillOpacity="0.8" />
-  <circle cx="356" cy="396" r="10" fill="#43C99A" />
+  <!-- Bold Black 'B' Character -->
+  <text
+    x="256"
+    y="241"
+    text-anchor="middle"
+    font-family="system-ui, -apple-system, sans-serif"
+    font-weight="900"
+    font-size="76"
+    fill="#0D1322"
+  >
+    B
+  </text>
 </svg>
