@@ -107,6 +107,7 @@ class SmsReceiver : BroadcastReceiver() {
                lower.contains("airtime") ||
                lower.contains("package") ||
                lower.contains("top-up") ||
+               lower.contains("top up") ||
                lower.contains("የአየር") ||
                lower.contains("ሞልተዋል") ||
                lower.contains("ጥቅል")
@@ -114,17 +115,46 @@ class SmsReceiver : BroadcastReceiver() {
 
     private fun isReceivedPayment(body: String): Boolean {
         val lower = body.lowercase()
-        return (lower.contains("received") && (lower.contains("etb") || lower.contains("birr"))) ||
-               lower.contains("ተቀብለዋል") ||
-               (lower.contains("credited with") && lower.contains("etb")) ||
-               lower.contains("transferred etb")
+
+        // 1. Blacklist: strictly reject outgoing transfers, payments sent, debits, withdrawals, or airtime
+        if (lower.contains("transferred to") ||
+            lower.contains("you have transferred") ||
+            lower.contains("you transferred") ||
+            lower.contains("transferred etb") ||
+            lower.contains("paid to") ||
+            lower.contains("you have paid") ||
+            lower.contains("you paid") ||
+            lower.contains("sent to") ||
+            lower.contains("debited") ||
+            lower.contains("withdrawn") ||
+            lower.contains("cash out") ||
+            lower.contains("አስተላልፈዋል") ||
+            lower.contains("ከፍለዋል") ||
+            lower.contains("ተቀንሷል") ||
+            lower.contains("ወጪ")
+        ) {
+            return false
+        }
+
+        // 2. Whitelist: Must strictly contain "received", "reveived", "credited with", or Amharic "ተቀብለዋል"
+        val hasReceived = lower.contains("received") ||
+                          lower.contains("reveived") ||
+                          lower.contains("credited with")
+        val hasAmharicReceived = lower.contains("ተቀብለዋል")
+
+        return hasReceived || hasAmharicReceived
     }
 
     private fun extractSummary(body: String): Pair<String, String> {
         var amount = ""
-        val amtMatch = Regex("""(?:received|credited\s+with|transferred|amount(?:\s+of)?|ETB|Birr|ብር)\s*(?:ETB|Birr|ብር)?\s*([\d,]+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE).find(body)
+        val amtMatch = Regex("""(?:received|credited\s+with|ተቀብለዋል)\s*(?:ETB|Birr|ብር)?\s*([\d,]+(?:\.\d{1,2})?)|(?:ETB|Birr|ብር)\s*([\d,]+(?:\.\d{1,2})?)\s*(?:received|ተቀብለዋል)""", RegexOption.IGNORE_CASE).find(body)
         if (amtMatch != null) {
-            amount = amtMatch.groupValues[1]
+            amount = if (amtMatch.groupValues[1].isNotEmpty()) amtMatch.groupValues[1] else amtMatch.groupValues[2]
+        } else {
+            val fallbackMatch = Regex("""(?:ETB|Birr|ብር)\s*([\d,]+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE).find(body)
+            if (fallbackMatch != null) {
+                amount = fallbackMatch.groupValues[1]
+            }
         }
 
         var senderName = ""
@@ -138,10 +168,10 @@ class SmsReceiver : BroadcastReceiver() {
             }
         }
 
-        val title = if (amount.isNotEmpty()) "Telebirr Payment: ETB $amount" else "Telebirr Payment Received"
+        val title = if (amount.isNotEmpty()) "Telebirr: ETB $amount" else "Telebirr Payment Received"
         val content = when {
-            senderName.isNotEmpty() && senderPhone.isNotEmpty() -> "From $senderName ($senderPhone)"
-            senderName.isNotEmpty() -> "From $senderName"
+            senderName.isNotEmpty() && senderPhone.isNotEmpty() -> "Received from $senderName ($senderPhone)"
+            senderName.isNotEmpty() -> "Received from $senderName"
             amount.isNotEmpty() -> "ETB $amount received into your account"
             else -> "Incoming payment received"
         }

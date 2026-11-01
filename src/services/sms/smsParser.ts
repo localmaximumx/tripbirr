@@ -138,11 +138,21 @@ export function parseTelebirrSms(input: RawSmsInput): ParsedTelebirrSms {
 
   const matchedAmountGroup = primaryAmountMatch || fallbackAmountMatch;
   if (matchedAmountGroup) {
-    const parsedAmt = parseAmountToMinorUnits(matchedAmountGroup[2]);
-    if (parsedAmt) {
-      amount = parsedAmt.major;
-      amountMinorUnits = parsedAmt.minor;
-      currency = 'ETB';
+    let rawAmountStr: string | null = null;
+    for (let i = 1; i < matchedAmountGroup.length; i++) {
+      const val = matchedAmountGroup[i];
+      if (val && /^\d+(?:\.\d{1,2})?$/.test(val.replace(/,/g, '').trim())) {
+        rawAmountStr = val;
+        break;
+      }
+    }
+    if (rawAmountStr) {
+      const parsedAmt = parseAmountToMinorUnits(rawAmountStr);
+      if (parsedAmt) {
+        amount = parsedAmt.major;
+        amountMinorUnits = parsedAmt.minor;
+        currency = 'ETB';
+      }
     }
   }
 
@@ -228,9 +238,17 @@ export function parseTelebirrSms(input: RawSmsInput): ParsedTelebirrSms {
     if (!transactionTime) missingFields.push('transactionTime');
   }
 
+  const lowerBody = singleLineBody.toLowerCase();
+  const strictlyHasReceivedKeyword =
+    lowerBody.includes('received') ||
+    lowerBody.includes('reveived') ||
+    lowerBody.includes('credited with') ||
+    lowerBody.includes('ተቀብለዋል');
+
   const isIncomingIncome =
     (messageType === SmsMessageType.PAYMENT_RECEIVED ||
       messageType === SmsMessageType.TRANSFER_RECEIVED) &&
+    strictlyHasReceivedKeyword &&
     amountMinorUnits !== null &&
     amountMinorUnits > 0;
 

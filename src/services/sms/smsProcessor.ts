@@ -111,7 +111,10 @@ export function evaluateIncomingSms(
     parsed,
     validation,
     processingStatus: ProcessingStatus.PROCESSED,
-    shouldCreateTransaction: true,
+    shouldCreateTransaction:
+      isIncoming ||
+      parsed.messageType === SmsMessageType.PAYMENT_REVERSED ||
+      parsed.messageType === SmsMessageType.REFUND,
     shouldNotifyDriver: isIncoming,
     suggestedTripAssociation: isIncoming && options.hasActiveTrip,
   };

@@ -66,20 +66,7 @@ export function classifyTelebirrSms(body: string, senderId: string = '127'): Sms
     }
   }
 
-  // 5. Check incoming payments and transfers
-  for (const regex of SMS_CLASSIFICATION_PATTERNS.PAYMENT_RECEIVED) {
-    if (regex.test(normalizedBody)) {
-      return SmsMessageType.PAYMENT_RECEIVED;
-    }
-  }
-
-  for (const regex of SMS_CLASSIFICATION_PATTERNS.TRANSFER_RECEIVED) {
-    if (regex.test(normalizedBody)) {
-      return SmsMessageType.TRANSFER_RECEIVED;
-    }
-  }
-
-  // 6. Check outgoing payments and transfers
+  // 5. Check outgoing payments and transfers FIRST to avoid false positive income
   for (const regex of SMS_CLASSIFICATION_PATTERNS.PAYMENT_SENT) {
     if (regex.test(normalizedBody)) {
       return SmsMessageType.PAYMENT_SENT;
@@ -89,6 +76,19 @@ export function classifyTelebirrSms(body: string, senderId: string = '127'): Sms
   for (const regex of SMS_CLASSIFICATION_PATTERNS.TRANSFER_SENT) {
     if (regex.test(normalizedBody)) {
       return SmsMessageType.TRANSFER_SENT;
+    }
+  }
+
+  // 6. Check incoming payments and transfers
+  for (const regex of SMS_CLASSIFICATION_PATTERNS.PAYMENT_RECEIVED) {
+    if (regex.test(normalizedBody)) {
+      return SmsMessageType.PAYMENT_RECEIVED;
+    }
+  }
+
+  for (const regex of SMS_CLASSIFICATION_PATTERNS.TRANSFER_RECEIVED) {
+    if (regex.test(normalizedBody)) {
+      return SmsMessageType.TRANSFER_RECEIVED;
     }
   }
 
