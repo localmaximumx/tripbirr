@@ -97,6 +97,34 @@ export default function App() {
     }
   }, [settings.theme]);
 
+  // Listen for real-time Telebirr 127 SMS events from the native Android Kotlin bridge
+  useEffect(() => {
+    const handleIncomingSms = (e: any) => {
+      const data = e.detail || e;
+      if (data && data.body) {
+        useTripBirrStore.getState().receiveIncomingSmsBroadcast({
+          senderId: data.senderId || '127',
+          body: data.body,
+          timestamp: data.timestamp || Date.now(),
+        });
+      }
+    };
+
+    window.addEventListener('TripBirrSmsReceived', handleIncomingSms);
+    (window as any).onNativeSmsReceived = (smsData: any) => {
+      handleIncomingSms({ detail: smsData });
+    };
+    (window as any).onNativeQueuedSmsDrained = (queue: any[]) => {
+      if (Array.isArray(queue)) {
+        queue.forEach((sms) => handleIncomingSms({ detail: sms }));
+      }
+    };
+
+    return () => {
+      window.removeEventListener('TripBirrSmsReceived', handleIncomingSms);
+    };
+  }, []);
+
   const handleOpenCashModal = (tripId?: string | null) => {
     setCashModalTripId(tripId);
     setIsCashModalOpen(true);

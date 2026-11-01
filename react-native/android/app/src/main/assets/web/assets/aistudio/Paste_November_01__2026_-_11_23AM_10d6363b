@@ -1,0 +1,1198 @@
+# PROJECT MASTER PROMPT
+# TELEBIRR DRIVER COMPANION — ANDROID APP
+
+## 1. Project Overview
+
+I want to build a professional Android application for drivers in Ethiopia who receive payments through Telebirr.
+
+The app should automatically detect incoming Telebirr transaction SMS messages from sender ID `127`, extract relevant payment information, organize payments, and help drivers understand how much money they earn from each trip.
+
+The main problem this application solves is that drivers often struggle to notice incoming Telebirr payments while driving. They may not immediately see who sent the money or how much was received. They also need a simple way to track their income across individual trips.
+
+The application should turn incoming Telebirr SMS notifications into organized financial records and connect those records to the driver's trips.
+
+**The application should be offline-first, Android-focused, easy to use, reliable, and visually polished.**
+
+Project name: **TripBirr** (working name; make it configurable).
+
+---
+
+# 2. Main Objectives
+
+The application must:
+
+1. Request the necessary SMS permission from the driver.
+2. Detect incoming SMS messages from sender ID `127`.
+3. Identify whether an SMS actually represents a financial transaction.
+4. Extract payment information accurately.
+5. Notify the driver when a valid incoming payment is detected.
+6. Save transaction records locally.
+7. Allow drivers to start and end trips.
+8. Record trip starting and ending locations.
+9. Associate incoming Telebirr payments with trips.
+10. Calculate income per trip and overall income.
+11. Display transaction and trip histories.
+12. Provide useful income statistics and reports.
+13. Work without an internet connection.
+14. Protect the driver's financial and personal information.
+
+Do not build an unnecessarily complicated system. Prioritize a reliable first version with a clean architecture that can be expanded later.
+
+---
+
+# 3. Technology Stack
+
+Use the following technologies.
+
+### Mobile application
+
+- React Native Community CLI.
+- TypeScript.
+- Android as the initial target platform.
+- React Navigation for navigation.
+- Zustand for lightweight state management.
+
+Do not rely on Expo Go for this project because the application requires native Android SMS functionality. Expo development builds may be considered later, but React Native Community CLI is the preferred starting point.
+
+### Database
+
+Use **SQLite as the primary local database**.
+
+SQLite is free and does not require a subscription, database server, or internet connection.
+
+Recommended approach:
+
+- SQLite for persistent local storage.
+- A compatible React Native SQLite driver, such as `op-sqlite` or `react-native-quick-sqlite`, after verifying compatibility with the selected React Native version.
+- Drizzle ORM if it is compatible with the chosen SQLite driver; otherwise, use well-structured native SQLite queries.
+- Database migrations for future schema changes.
+
+SQLite must be the application's primary source of truth.
+
+Do not introduce Firebase, Supabase, or another cloud database for the first version.
+
+### Other libraries
+
+Evaluate and use compatible, actively maintained libraries for:
+
+- React Navigation.
+- Zustand.
+- React Native Maps.
+- Geolocation.
+- Local notifications, such as Notifee.
+- Charts, such as Victory Native.
+- Date and time formatting.
+- Form validation.
+- Icons.
+
+Verify package compatibility before installation. Do not blindly install outdated or incompatible libraries.
+
+### Native Android integration
+
+Implement Android-specific functionality using Kotlin where necessary.
+
+Create native modules for:
+
+- SMS reception.
+- SMS permission management.
+- Reliable background SMS processing.
+- Native notification handling if required.
+- Location functionality if required.
+
+The React Native interface should communicate with these modules through a clean, well-defined native bridge.
+
+---
+
+# 4. SMS Permission and Detection
+
+This is one of the most important parts of the application.
+
+The application must be able to detect incoming Telebirr SMS messages from sender ID `127`.
+
+### Permission flow
+
+When the driver first opens the application:
+
+1. Explain why SMS access is needed.
+2. Clearly explain that the application only processes relevant Telebirr transaction notifications.
+3. Ask for the necessary Android SMS permission.
+4. If permission is granted, continue to the main application.
+5. If permission is denied, explain which functionality will not work.
+6. Allow the driver to retry granting permission later.
+
+Request only permissions that are actually needed.
+
+Use `RECEIVE_SMS` for incoming SMS reception where appropriate.
+
+Use `READ_SMS` only if historical SMS import is implemented and genuinely necessary.
+
+Do not make the application the default SMS application.
+
+Do not collect or upload the driver's entire inbox.
+
+### SMS receiver reliability
+
+Implement a native Android SMS BroadcastReceiver using Kotlin.
+
+Important:
+
+- The receiver must work even when the React Native JavaScript runtime is not currently running.
+- Do not depend exclusively on JavaScript event listeners for incoming SMS.
+- Process or safely queue incoming messages on the native side.
+- Persist received events reliably so they are not lost if the application is closed.
+- Avoid processing the same SMS more than once.
+- Handle multiple messages arriving close together.
+- Recover safely after device restart where appropriate.
+- Respect Android background execution and battery restrictions.
+
+The native receiver should forward relevant information to the React Native application when the JavaScript runtime is available.
+
+Do not assume that the application can always display a notification immediately under every Android restriction. Handle notification permissions and failures gracefully.
+
+---
+
+# 5. Telebirr SMS Classification and Parsing
+
+Do not assume every message from sender ID `127` represents a payment.
+
+The application must inspect and classify the SMS content before extracting transaction information.
+
+### Example Telebirr SMS
+
+Sender ID: `127`
+
+Example message:
+
+Dear Biniyam
+
+You have received ETB 50.00 from Natnael Birhanu(2519****8747) on 21/10/2026 23:43:07. Your transaction number is DJL25NAFRW. Your current E-Money Account balance is ETB 332.62.
+
+Thank you for using telebirr
+
+Ethio telecom
+
+### Expected extracted information
+
+- SMS sender ID: 127
+- Message type: PAYMENT_RECEIVED
+- Recipient: Biniyam
+- Amount: 50.00
+- Currency: ETB
+- Sender name: Natnael Birhanu
+- Sender phone: 2519****8747
+- Transaction date: 21/10/2026
+- Transaction time: 23:43:07
+- Transaction ID: DJL25NAFRW
+- Account balance: 332.62
+
+The parser should extract whatever fields are available and identify missing or invalid information.
+
+### Message classification
+
+Design a classification system that can accommodate different Telebirr SMS formats.
+
+Potential message types include:
+
+- PAYMENT_RECEIVED
+- PAYMENT_SENT
+- TRANSFER_RECEIVED
+- TRANSFER_SENT
+- PAYMENT_FAILED
+- PAYMENT_REVERSED
+- REFUND
+- ACCOUNT_BALANCE_UPDATE
+- SERVICE_NOTIFICATION
+- PROMOTIONAL_MESSAGE
+- UNKNOWN
+
+These are candidate categories. Validate them against actual message examples rather than assuming all these formats exist.
+
+### Parsing requirements
+
+The SMS parser must:
+
+- Verify the sender ID.
+- Classify the message.
+- Extract the amount and currency.
+- Extract the sender's name where available.
+- Extract the sender's phone number where available.
+- Extract the transaction ID.
+- Extract date and time.
+- Extract the account balance if present.
+- Handle different spaces and line breaks.
+- Handle capitalization differences.
+- Handle missing optional fields.
+- Handle punctuation differences.
+- Be designed to support Amharic SMS formats in the future.
+
+Do not rely on one exact SMS template.
+
+Use a modular parser with separate classification and extraction logic.
+
+### Financial accuracy
+
+This is especially important:
+
+- Only valid incoming payments should increase incoming payment totals.
+- Outgoing payments must not be counted as income.
+- Failed transactions must not increase income.
+- Reversals and refunds must not be counted as new positive income.
+- Unknown messages must not affect financial totals.
+- Duplicate messages must not create duplicate transactions.
+
+Use the transaction ID as the primary duplicate-detection key when available.
+
+If a transaction ID is missing, use a carefully designed fallback duplicate-detection strategy.
+
+Do not claim that an SMS independently verifies a payment against Telebirr's official financial ledger. The application detects and records SMS notifications; it does not independently verify the transaction with Telebirr.
+
+### Parser architecture
+
+Keep the SMS parser independent of the user interface.
+
+Suggested structure:
+
+`src/services/sms/`
+
+- `smsParser.ts`
+- `smsClassifier.ts`
+- `smsPatterns.ts`
+- `smsTypes.ts`
+- `smsValidation.ts`
+- `smsProcessor.ts`
+
+Write unit tests for each supported message format.
+
+Keep unknown or ambiguous messages separately for review.
+
+---
+
+# 6. Payment Notifications
+
+When a valid incoming payment is detected, notify the driver.
+
+Example:
+
+**Payment received**
+
+ETB 50.00
+
+From: Natnael Birhanu
+
+Time: 23:43
+
+The notification should be clear, compact, and easy to understand.
+
+### Notification settings
+
+Allow the driver to configure:
+
+- Sound on/off.
+- Vibration on/off.
+- Voice announcement on/off.
+- Notification preview on/off.
+- Silent mode.
+
+### Voice announcement
+
+Consider implementing text-to-speech functionality.
+
+Example:
+
+"Payment received, fifty birr from Natnael Birhanu."
+
+The voice announcement should be optional because the driver may be driving, talking to passengers, or operating in a noisy environment.
+
+Allow the driver to enable or disable it.
+
+Avoid intrusive full-screen popups that interrupt driving.
+
+Notifications must not require internet access.
+
+---
+
+# 7. Trip Management
+
+Trip management is a central feature.
+
+The driver should be able to record the beginning and end of every trip.
+
+### Starting a trip
+
+Create a prominent **Start Trip** button.
+
+When the driver taps it:
+
+1. Create a new trip.
+2. Record the starting timestamp.
+3. Ask for or obtain the starting location.
+4. Save the location.
+5. Change the trip status to ACTIVE.
+6. Display the active trip on the dashboard.
+
+### Ending a trip
+
+Create a prominent **End Trip** button.
+
+When the driver taps it:
+
+1. Record the ending timestamp.
+2. Ask for or obtain the destination.
+3. Save the ending location.
+4. Change the trip status to COMPLETED.
+5. Calculate trip duration.
+6. Display associated payments and total collections.
+
+### Location recording
+
+The meaning of location tracking in this project is specifically the driver's trip starting point and ending point.
+
+Example:
+
+- Starting point: 4 Kilo, Addis Ababa.
+- Destination: Piassa, Addis Ababa.
+
+The application should record:
+
+- Starting place name.
+- Starting GPS latitude and longitude, if available.
+- Starting location timestamp.
+- Ending place name.
+- Ending GPS latitude and longitude, if available.
+- Ending location timestamp.
+- Location accuracy where available.
+- Location source: GPS or manually entered.
+
+Allow the driver to manually enter or edit the locations.
+
+GPS should assist the driver, not be mandatory.
+
+If GPS is unavailable or permission is denied, the trip must still work.
+
+Do not implement continuous background location tracking in the first version.
+
+Do not claim that the application knows the exact route travelled if it only records the start and end points.
+
+### Trip states
+
+Use:
+
+- ACTIVE
+- COMPLETED
+- CANCELLED
+
+Only completed trips should be included in completed-trip reports.
+
+Support editing trip details and deleting a trip with confirmation.
+
+Avoid allowing multiple active trips simultaneously unless there is a clear reason to support it.
+
+---
+
+# 8. Associating Payments With Trips
+
+This is a critical business feature.
+
+One trip can have multiple Telebirr payments.
+
+Example:
+
+A driver starts a trip from 4 Kilo to Piassa.
+
+During the trip:
+
+- Passenger 1 pays ETB 50.
+- Passenger 2 pays ETB 30.
+- Passenger 3 pays ETB 20.
+
+The application should show:
+
+Trip: 4 Kilo → Piassa
+
+Total collected: ETB 100
+
+Number of payments: 3
+
+### Automatic association
+
+When an incoming payment is detected while a trip is active:
+
+- Suggest associating the payment with the active trip.
+- Make the association clear.
+- Allow the driver to confirm or change the association.
+
+Do not silently make an irreversible association.
+
+### Manual association
+
+The driver must be able to:
+
+- Assign a payment to a trip.
+- Change the trip associated with a payment.
+- Remove a payment from a trip.
+- View payments that have not been assigned to any trip.
+
+Important rules:
+
+- A trip can have zero, one, or many payments.
+- A transaction may have no associated trip.
+- A transaction should belong to at most one trip at a time.
+- Do not discard payments received outside active trips.
+- Do not automatically associate old payments with a new trip.
+- Allow the driver to review unassigned payments later.
+
+Keep trips and transactions as separate database entities.
+
+Do not store all payment details directly inside a trip record.
+
+Use a nullable foreign key such as `trip_id` in the transaction table.
+
+---
+
+# 9. Dashboard
+
+Design a professional home dashboard that gives the driver an immediate understanding of their financial activity.
+
+### Dashboard information
+
+Display:
+
+1. Today's total collections.
+2. Number of incoming payments.
+3. Number of completed trips.
+4. Total payments associated with trips.
+5. Unassigned payment total.
+6. Average income per completed trip.
+7. Recent transactions.
+8. Recent trips.
+9. Active trip information.
+
+### Active trip card
+
+If a trip is active, display:
+
+- Starting location.
+- Start time.
+- Current trip status.
+- Payments received during the trip.
+- Total collected so far.
+- End Trip action.
+
+### Quick actions
+
+Provide easy access to:
+
+- Start Trip.
+- End Trip.
+- View Transactions.
+- View Trips.
+- View Reports.
+
+The most important actions should be easy to reach with one hand.
+
+---
+
+# 10. Transaction History
+
+Create a dedicated Transactions screen.
+
+Display a list of recorded financial transactions.
+
+Each transaction item should show:
+
+- Amount.
+- Transaction type.
+- Sender name.
+- Date and time.
+- Transaction status.
+- Associated trip, if any.
+
+### Transaction details
+
+When the driver opens a transaction, display:
+
+- Amount.
+- Currency.
+- Sender.
+- Sender phone number, if available.
+- Transaction ID.
+- Transaction date and time.
+- Account balance, if available.
+- SMS sender ID.
+- Classification.
+- Associated trip.
+- Relevant processing status.
+
+### Transaction filters
+
+Allow filtering by:
+
+- Incoming payments.
+- Outgoing payments.
+- Refunds and reversals.
+- Unknown messages.
+- Assigned transactions.
+- Unassigned transactions.
+- Date range.
+
+Add search functionality.
+
+Provide a way to manually correct an association without altering the original transaction information unnecessarily.
+
+---
+
+# 11. Trip History and Trip Details
+
+Create a Trips screen showing previous trips.
+
+Each trip card should display:
+
+- Starting location.
+- Destination.
+- Trip date.
+- Duration.
+- Number of associated payments.
+- Total collected.
+
+### Trip details screen
+
+Display:
+
+- Starting location.
+- Ending location.
+- Start time.
+- End time.
+- Duration.
+- Trip status.
+- Total associated Telebirr payments.
+- Number of payments.
+- Associated transaction list.
+- Optional notes.
+
+If map functionality is implemented, display the start and end points on a map.
+
+Do not draw a fabricated route between them.
+
+Allow the driver to edit trip information and manage its associated payments.
+
+---
+
+# 12. Reports and Financial Statistics
+
+Create a Reports section to help drivers understand their earnings.
+
+### Time filters
+
+Support:
+
+- Today.
+- Yesterday.
+- Last 7 days.
+- Last 30 days.
+- Custom date range.
+
+### Statistics
+
+Calculate:
+
+- Total incoming Telebirr payments.
+- Total outgoing transactions, separately.
+- Net amount after applicable refunds and reversals.
+- Number of completed trips.
+- Average income per trip.
+- Highest-earning trip.
+- Lowest-earning trip.
+- Total unassigned payments.
+- Average daily income.
+
+### Charts
+
+Consider:
+
+- Daily income chart.
+- Weekly income chart.
+- Monthly income chart.
+- Income per trip chart.
+- Payment count chart.
+
+All calculations must use reliable database records.
+
+Do not include failed, unknown, or outgoing transactions in incoming income.
+
+Refunds and reversals should be represented correctly.
+
+Allow exporting reports as CSV initially. PDF export can be added as a later feature.
+
+---
+
+# 13. Manual Cash Payments
+
+Design the data model so that manual cash payments can be supported.
+
+This will allow drivers to record cash income in addition to Telebirr payments.
+
+Potential fields:
+
+- Amount.
+- Currency.
+- Payment method: CASH or TELEBIRR.
+- Date and time.
+- Optional description.
+- Associated trip.
+
+Do not make manual cash entry more complicated than necessary.
+
+Clearly distinguish Telebirr income from manually entered cash income in reports.
+
+---
+
+# 14. Database Design
+
+Use SQLite as the primary database.
+
+The database should be relational, normalized, and designed for future expansion.
+
+Suggested tables:
+
+### trips
+
+Fields:
+
+- id
+- start_location_name
+- start_latitude
+- start_longitude
+- start_location_accuracy
+- start_location_source
+- start_time
+- end_location_name
+- end_latitude
+- end_longitude
+- end_location_accuracy
+- end_location_source
+- end_time
+- duration
+- status
+- notes
+- created_at
+- updated_at
+
+### transactions
+
+Fields:
+
+- id
+- trip_id (nullable foreign key)
+- transaction_id (nullable)
+- transaction_type
+- payment_method
+- amount_minor_units
+- currency
+- sender_name
+- sender_phone
+- recipient_name
+- transaction_date
+- transaction_time
+- account_balance_minor_units (nullable)
+- sms_sender
+- transaction_status
+- original_transaction_id (nullable, for reversals or refunds where identifiable)
+- created_at
+- updated_at
+
+### sms_processing_records
+
+Optional table for tracking processed messages.
+
+Fields may include:
+
+- id
+- sender_id
+- message_fingerprint
+- classification
+- processing_status
+- received_at
+- processed_at
+- error_message
+
+Avoid unnecessarily storing raw SMS content. If raw content must be retained for troubleshooting, make retention limited and protect it appropriately.
+
+### settings
+
+Store preferences such as:
+
+- Notification sound.
+- Vibration.
+- Voice announcement.
+- Notification preview.
+- Currency display.
+- Language.
+- Theme.
+- Other application preferences.
+
+### Database rules
+
+1. Use foreign keys.
+2. Use indexes for frequently queried fields.
+3. Use a unique constraint for transaction IDs where available.
+4. Store money as integer minor units instead of floating-point values.
+
+Example:
+
+ETB 50.00 = 5000 cents.
+
+5. Store timestamps consistently, preferably in UTC internally, and display them in the driver's local time.
+6. Use database transactions when multiple related records must be saved together.
+7. Make `trip_id` nullable.
+8. Use migrations.
+9. Preserve original transactions when handling refunds and reversals.
+10. Do not delete an original transaction simply because it was reversed.
+
+The database must work entirely offline.
+
+---
+
+# 15. UI/UX Design System
+
+The application should look like a polished modern fintech and transportation management application.
+
+Avoid a generic or outdated Android interface.
+
+The design should be simple, professional, modern, and easy to understand.
+
+### Suggested color palette
+
+Light theme:
+
+- Primary dark green: `#123C35`
+- Primary green: `#16866A`
+- Accent mint: `#DDF5E9`
+- Success: `#22A06B`
+- Background: `#F5F7F5`
+- Surface: `#FFFFFF`
+- Primary text: `#172B25`
+- Secondary text: `#75847D`
+- Border: `#E3EAE5`
+- Warning: `#E9A23B`
+- Error: `#D9534F`
+
+Dark theme:
+
+- Background: `#101A17`
+- Surface: `#192722`
+- Primary: `#43C99A`
+- Text: `#EDF6F0`
+
+Use the green palette selectively. Do not make every component green.
+
+### Design principles
+
+- Rounded cards.
+- Subtle shadows.
+- Consistent spacing.
+- Clear typography.
+- Good contrast.
+- Intuitive icons.
+- Large touch targets.
+- Smooth but restrained animations.
+- Clear loading and empty states.
+- Proper form validation.
+- Responsive layouts for different Android screen sizes.
+
+### Main navigation
+
+Use a bottom navigation bar with five sections:
+
+1. Home
+2. Trips
+3. Transactions
+4. Reports
+5. Settings
+
+Make the Start Trip and End Trip actions particularly visible.
+
+Support light and dark themes.
+
+Initially, English is sufficient, but design the application so Amharic localization can be added later.
+
+---
+
+# 16. Security and Privacy
+
+The application processes financial SMS notifications, so privacy must be taken seriously.
+
+Requirements:
+
+- Process only relevant messages from sender ID `127`.
+- Never upload the entire inbox.
+- Store data locally by default.
+- Do not send financial records to external servers.
+- Avoid unnecessary collection of personal information.
+- Protect sensitive local data.
+- Consider Android Keystore-backed encryption for sensitive information or encryption keys.
+- Do not log raw SMS content.
+- Do not expose transaction details in analytics or crash reports.
+- Allow the driver to delete records.
+- Clearly explain why SMS and location permissions are needed.
+- Do not track location continuously by default.
+
+If cloud backup is added in the future, make it optional, secure, and transparent.
+
+---
+
+# 17. Offline-First Architecture
+
+The application must work without internet access.
+
+The following features must work offline:
+
+- SMS detection.
+- SMS parsing.
+- Transaction storage.
+- Trip creation.
+- Trip completion.
+- Location entry.
+- Payment association.
+- Dashboard calculations.
+- Transaction history.
+- Trip history.
+- Reports.
+- Notifications.
+
+Do not require a user account or online registration for the first version.
+
+Do not make cloud services a dependency for core functionality.
+
+---
+
+# 18. Error Handling and Edge Cases
+
+Design for real-world situations.
+
+Handle:
+
+- SMS permission denied.
+- SMS permission revoked.
+- Location permission denied.
+- GPS unavailable.
+- Missing sender name.
+- Missing transaction ID.
+- Invalid amount.
+- Unknown SMS format.
+- Duplicate SMS.
+- Multiple incoming SMS messages.
+- Application closed.
+- Device restarted.
+- Application running in the background.
+- Low battery.
+- Database write failure.
+- Interrupted trip.
+- Driver forgets to end a trip.
+- Payment received when no trip is active.
+- Payment received shortly before or after a trip.
+- Refund or reversal received later.
+- Incorrect manual location.
+- Application upgraded with an older database schema.
+
+Do not silently discard important information.
+
+Provide understandable error messages and safe recovery mechanisms.
+
+---
+
+# 19. Testing Requirements
+
+Testing is essential, especially for SMS processing and financial calculations.
+
+### SMS parser tests
+
+Create unit tests using different SMS examples.
+
+Test:
+
+- Valid incoming payment.
+- Outgoing payment.
+- Failed transaction.
+- Refund.
+- Reversal.
+- Promotional message.
+- Service notification.
+- Unknown message.
+- Missing transaction ID.
+- Different spacing.
+- Different capitalization.
+- Different date formats.
+- Duplicate transaction.
+- Invalid amount.
+
+### Database tests
+
+Test:
+
+- Creating trips.
+- Completing trips.
+- Saving transactions.
+- Associating transactions with trips.
+- Removing associations.
+- Duplicate prevention.
+- Refund and reversal handling.
+- Correct income calculations.
+- Database migration.
+
+### Physical Android testing
+
+Test on actual Android devices.
+
+Pay special attention to Samsung devices and Android battery management.
+
+Test:
+
+- Application open.
+- Application minimized.
+- Screen off.
+- Application process not running.
+- Device restart.
+- Battery saver enabled.
+- No internet.
+- Multiple SMS arriving quickly.
+- SMS permission revoked.
+- Notification permission denied.
+
+Do not consider the SMS system complete until it has been tested on a physical device.
+
+---
+
+# 20. Recommended Project Structure
+
+Organize the project cleanly.
+
+Suggested structure:
+
+TripBirr/
+
+    android/
+        app/
+            src/
+                main/
+                    java/
+                        com/tripbirr/
+                            sms/
+                                SmsReceiver.kt
+                                SmsModule.kt
+                                SmsPackage.kt
+                            location/
+                                LocationModule.kt
+                            notifications/
+                                NotificationModule.kt
+
+    src/
+        components/
+        screens/
+            Home/
+            Trips/
+            Transactions/
+            Reports/
+            Settings/
+
+        navigation/
+
+        database/
+            schema.ts
+            migrations/
+            database.ts
+            repositories/
+
+        services/
+            sms/
+                smsParser.ts
+                smsClassifier.ts
+                smsPatterns.ts
+                smsTypes.ts
+                smsValidation.ts
+                smsProcessor.ts
+
+            trips/
+            notifications/
+            location/
+            reports/
+
+        store/
+
+        hooks/
+
+        utils/
+
+        theme/
+
+        types/
+
+        constants/
+
+    __tests__/
+
+Adjust the structure if there is a strong technical reason, but maintain clear separation between UI, business logic, native Android functionality, and database access.
+
+---
+
+# 21. Development Phases
+
+Build the application incrementally.
+
+Do not attempt to implement everything in one step.
+
+### Phase 1 — Project foundation
+
+- Initialize React Native Community CLI project.
+- Configure TypeScript.
+- Set up navigation.
+- Set up the design system.
+- Create the main screens.
+- Configure SQLite.
+- Create database schema and migrations.
+
+### Phase 2 — SMS functionality
+
+- Implement SMS permission flow.
+- Create Kotlin SMS receiver.
+- Implement reliable native message processing.
+- Build the TypeScript SMS classifier and parser.
+- Add unit tests.
+- Save valid transactions in SQLite.
+- Implement duplicate detection.
+
+### Phase 3 — Payment notifications
+
+- Implement local notifications.
+- Show incoming payment amount and sender.
+- Add notification settings.
+- Implement optional voice announcements.
+
+### Phase 4 — Trip management
+
+- Implement Start Trip.
+- Implement End Trip.
+- Add manual location entry.
+- Add GPS-assisted location capture.
+- Save trip information in SQLite.
+- Implement trip history and trip details.
+
+### Phase 5 — Payment and trip association
+
+- Suggest associating incoming payments with active trips.
+- Allow manual association and reassignment.
+- Create an unassigned payments section.
+- Calculate trip income.
+
+### Phase 6 — Dashboard and reports
+
+- Display daily earnings.
+- Display payment and trip statistics.
+- Add transaction history.
+- Add trip history.
+- Add income charts.
+- Add date filters.
+- Implement CSV export.
+
+### Phase 7 — Quality and release preparation
+
+- Test on physical devices.
+- Test Android background behavior.
+- Test battery restrictions.
+- Test permission handling.
+- Test database integrity.
+- Improve performance.
+- Polish UI.
+- Review privacy and Google Play policy requirements.
+
+---
+
+# 22. Important Future Possibilities
+
+Do not implement these features unless the core application is stable.
+
+Potential future improvements:
+
+- Amharic language support.
+- Cloud backup.
+- Multi-device synchronization.
+- Fleet management.
+- Multiple driver accounts.
+- Advanced income analytics.
+- PDF report export.
+- More payment providers.
+- Additional Ethiopian mobile money services.
+- Official Telebirr API integration, if an appropriate supported API becomes available.
+- More advanced trip mapping.
+- Cash payment management.
+- Optional driver PIN or biometric app lock.
+
+Keep the initial architecture flexible enough to support future features.
+
+---
+
+# 23. Critical Instructions for the AI Coding Agent
+
+Follow these rules throughout development:
+
+1. Build a real working Android application, not just a visual prototype.
+2. Use React Native and TypeScript for the main application.
+3. Use Kotlin for native Android functionality that React Native cannot reliably provide.
+4. Use SQLite as the primary database.
+5. Do not introduce paid infrastructure or subscriptions for the first version.
+6. Do not use mock data as a replacement for actual SMS detection and database functionality.
+7. Keep SMS parsing independent of the UI.
+8. Never count unknown, failed, or outgoing messages as incoming income.
+9. Prevent duplicate transaction records.
+10. Never discard unassigned payments.
+11. Keep trip and transaction records separate.
+12. Do not assume every SMS from `127` is a payment.
+13. Do not depend exclusively on the JavaScript runtime for background SMS reception.
+14. Do not implement unnecessary continuous GPS tracking.
+15. Make the application usable without internet.
+16. Prioritize accurate financial calculations over visual effects.
+17. Use reusable components and maintainable code.
+18. Add appropriate error handling and unit tests.
+19. Explain important architectural decisions.
+20. Verify library compatibility before installing packages.
+21. Do not claim that an SMS is independently verified by Telebirr.
+22. Never claim a feature is implemented until it actually works.
+
+### How to work
+
+Start by examining the project environment and confirming the available development tools.
+
+Then:
+
+1. Present the proposed architecture.
+2. Initialize the project.
+3. Build the database foundation.
+4. Implement the application incrementally according to the phases above.
+5. Explain which files are created or modified.
+6. Test each major feature before moving to the next phase.
+7. Identify Android-specific limitations honestly.
+8. Ask for clarification only when a genuinely important product decision is missing.
+
+Do not generate the entire project in one enormous, untested code dump.
+
+Build a stable foundation first, then implement and verify each feature.
+
+---
+
+# FINAL PRODUCT VISION
+
+The final product should be a reliable personal income and trip management assistant for Ethiopian drivers.
+
+A driver should be able to:
+
+1. Open the application.
+2. Grant SMS permission.
+3. Start a trip from a location such as 4 Kilo.
+4. Receive Telebirr payments while transporting passengers.
+5. Have incoming payment notifications detected and recorded automatically.
+6. See who sent the payment and how much was received.
+7. Associate payments with the active trip.
+8. End the trip at a destination such as Piassa.
+9. See the total money collected during that trip.
+10. Review daily, weekly, and monthly income.
+
+**The central goal is simple: make it easy for Ethiopian drivers to know how much money they receive and how much they earn from each trip, without manually checking and organizing every Telebirr SMS.**
