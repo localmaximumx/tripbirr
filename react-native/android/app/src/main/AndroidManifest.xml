@@ -1,7 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.tripbirr">
 
-    <!-- Minimal required permissions: RECEIVE_SMS for Telebirr 127 detection, Location for trip start/end endpoints -->
+    <!-- Permissions: SMS 127 for Telebirr, GPS location, notifications, vibration, network -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
