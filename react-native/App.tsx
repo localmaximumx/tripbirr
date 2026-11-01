@@ -14,21 +14,13 @@ import {
   triggerNativePaymentNotification,
   acknowledgeNativeSms,
 } from './src/native/TripBirrNativeBridge';
-import { initializeNativeSqliteDatabase } from './src/database/sqliteNative';
 
 export default function TripBirrReactNativeApp() {
   const webViewRef = useRef<WebView>(null);
   const [canGoBack, setCanGoBack] = useState(false);
 
   useEffect(() => {
-    // 1. Initialize native SQLite tables safely
-    try {
-      initializeNativeSqliteDatabase();
-    } catch (dbErr) {
-      console.warn('Native SQLite init caught:', dbErr);
-    }
-
-    // 2. Request SMS permission & drain any background SMS queued by SmsReceiver.kt
+    // 1. Request SMS permission & drain any background SMS queued by SmsReceiver.kt
     requestAndroidReceiveSmsPermission()
       .then(async (granted) => {
         if (granted) {
@@ -55,7 +47,7 @@ export default function TripBirrReactNativeApp() {
         console.warn('SMS permission request error:', err);
       });
 
-    // 3. Real-time native Telebirr 127 SMS listener
+    // 2. Real-time native Telebirr 127 SMS listener
     let unsubscribe = () => {};
     try {
       unsubscribe = subscribeToNativeTelebirrSms(async (event) => {
@@ -77,7 +69,7 @@ export default function TripBirrReactNativeApp() {
       console.warn('subscribeToNativeTelebirrSms error:', subErr);
     }
 
-    // 4. Android Hardware Back Button navigation
+    // 3. Android Hardware Back Button navigation
     const backAction = () => {
       if (canGoBack && webViewRef.current) {
         webViewRef.current.goBack();

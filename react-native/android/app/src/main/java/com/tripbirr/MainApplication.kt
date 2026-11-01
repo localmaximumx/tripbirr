@@ -14,10 +14,15 @@ class MainApplication : Application(), ReactApplication {
 
     override val reactNativeHost: ReactNativeHost =
         object : DefaultReactNativeHost(this) {
-            override fun getPackages(): List<ReactPackage> =
-                PackageList(this).packages.apply {
-                    add(SmsPackage())
+            override fun getPackages(): List<ReactPackage> {
+                val packages = try {
+                    PackageList(this).packages.toMutableList()
+                } catch (_: Throwable) {
+                    mutableListOf()
                 }
+                packages.add(SmsPackage())
+                return packages
+            }
 
             override fun getJSMainModuleName(): String = "index"
 
@@ -29,9 +34,15 @@ class MainApplication : Application(), ReactApplication {
 
     override fun onCreate() {
         super.onCreate()
-        SoLoader.init(this, false)
+        try {
+            SoLoader.init(this, false)
+        } catch (_: Throwable) {
+        }
         if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
-            load()
+            try {
+                load()
+            } catch (_: Throwable) {
+            }
         }
     }
 }

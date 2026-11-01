@@ -26,16 +26,27 @@ class NotificationModule(private val reactContext: ReactApplicationContext) :
     private var ttsReady = false
 
     init {
-        tts = TextToSpeech(reactContext.applicationContext, this)
-        createNotificationChannel()
+        try {
+            tts = TextToSpeech(reactContext.applicationContext, this)
+        } catch (_: Throwable) {
+            // TextToSpeech initialization deferred or unsupported on this device
+        }
+        try {
+            createNotificationChannel()
+        } catch (_: Throwable) {
+            // Notification channel initialization deferred
+        }
     }
 
     override fun getName(): String = "TripBirrNotificationModule"
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
-            tts?.language = Locale.US
-            ttsReady = true
+            try {
+                tts?.language = Locale.US
+                ttsReady = true
+            } catch (_: Throwable) {
+            }
         }
     }
 
@@ -48,8 +59,8 @@ class NotificationModule(private val reactContext: ReactApplicationContext) :
             ).apply {
                 description = "Alerts when a valid Telebirr 127 payment is received"
             }
-            val manager = reactContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(channel)
+            val manager = reactContext.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            manager?.createNotificationChannel(channel)
         }
     }
 
@@ -79,7 +90,7 @@ class NotificationModule(private val reactContext: ReactApplicationContext) :
                 tts?.speak(spokenText, TextToSpeech.QUEUE_FLUSH, null, "tripbirr_tts")
             }
             promise.resolve(true)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             promise.reject("ERR_NOTIF", e.message, e)
         }
     }
