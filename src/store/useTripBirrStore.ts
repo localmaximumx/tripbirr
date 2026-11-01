@@ -615,6 +615,12 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
 
     assignTransactionToTrip: (transactionRecordId, tripId) => {
       const state = get();
+      if (tripId !== null) {
+        const targetTrip = state.trips.find((t) => t.id === tripId);
+        if (!targetTrip || targetTrip.status !== TripStatus.ACTIVE) {
+          return;
+        }
+      }
       const nowIso = `${CURRENT_DEMO_ISO_DATE}T${new Date().toISOString().slice(11)}`;
       const isPendingTx =
         state.pendingAssociationPrompt?.transactionRecordId === transactionRecordId;

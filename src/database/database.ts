@@ -1073,11 +1073,30 @@ export function createSeedDatabaseState(): DatabaseState {
   };
 }
 
+const PRIVACY_HIDE_BALANCE_STORAGE_KEY = 'tripbirr_privacy_hide_balance';
+
+function getPersistedHideBalancePreference(fallback: boolean): boolean {
+  try {
+    const raw = localStorage.getItem(PRIVACY_HIDE_BALANCE_STORAGE_KEY);
+    if (raw === 'true') return true;
+    if (raw === 'false') return false;
+  } catch {
+    // ignore storage read error
+  }
+  return fallback;
+}
+
 export function loadDatabaseFromStorage(): DatabaseState {
   try {
     const raw = localStorage.getItem(DB_STORAGE_KEY);
     if (!raw) {
       const seeded = createSeedDatabaseState();
+      seeded.settings = {
+        ...seeded.settings,
+        privacy_hide_balance: getPersistedHideBalancePreference(
+          Boolean(seeded.settings.privacy_hide_balance)
+        ),
+      };
       saveDatabaseToStorage(seeded);
       return seeded;
     }
@@ -1085,14 +1104,17 @@ export function loadDatabaseFromStorage(): DatabaseState {
     if (!parsed.driverProfile) {
       parsed.driverProfile = DEFAULT_DRIVER_PROFILE;
     }
+    parsed.settings = {
+      ...DEFAULT_SETTINGS,
+      ...parsed.settings,
+      privacy_hide_balance: getPersistedHideBalancePreference(
+        Boolean(parsed.settings?.privacy_hide_balance)
+      ),
+      schema_version: CURRENT_SCHEMA_VERSION,
+    };
     if (!parsed.schemaVersion || parsed.schemaVersion < CURRENT_SCHEMA_VERSION) {
       parsed.schemaVersion = CURRENT_SCHEMA_VERSION;
       parsed.appliedMigrations = SQLITE_MIGRATIONS.map((m) => m.name);
-      parsed.settings = {
-        ...DEFAULT_SETTINGS,
-        ...parsed.settings,
-        schema_version: CURRENT_SCHEMA_VERSION,
-      };
       saveDatabaseToStorage(parsed);
     }
     return parsed;
@@ -1104,6 +1126,12 @@ export function loadDatabaseFromStorage(): DatabaseState {
 export function saveDatabaseToStorage(state: DatabaseState): void {
   try {
     localStorage.setItem(DB_STORAGE_KEY, JSON.stringify(state));
+    if (state.settings && typeof state.settings.privacy_hide_balance === 'boolean') {
+      localStorage.setItem(
+        PRIVACY_HIDE_BALANCE_STORAGE_KEY,
+        String(state.settings.privacy_hide_balance)
+      );
+    }
   } catch (err) {
     console.error('SQLite storage write failure:', err);
   }

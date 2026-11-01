@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
   Route,
-  Search,
   User,
   X,
 } from 'lucide-react';
@@ -91,7 +90,6 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
   const [customStart, setCustomStart] = useState('2026-10-26');
   const [customEnd, setCustomEnd] = useState(CURRENT_DEMO_ISO_DATE);
 
-  const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<PaymentFilter>('ALL');
   const [selectedTxId, setSelectedTxId] = useState<string | null>(null);
 
@@ -134,7 +132,6 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
   );
 
   const filteredPayments = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
     return periodPayments.filter((tx) => {
       if (activeFilter === 'TELEBIRR' && tx.payment_method !== PaymentMethod.TELEBIRR) {
         return false;
@@ -145,16 +142,9 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
       if (activeFilter === 'UNASSIGNED' && tx.trip_id !== null) {
         return false;
       }
-      if (!q) return true;
-      const amountStr = (tx.amount_minor_units / 100).toFixed(2);
-      return (
-        (tx.sender_name || '').toLowerCase().includes(q) ||
-        (tx.transaction_id || '').toLowerCase().includes(q) ||
-        (tx.description || '').toLowerCase().includes(q) ||
-        amountStr.includes(q)
-      );
+      return true;
     });
-  }, [periodPayments, activeFilter, searchQuery]);
+  }, [periodPayments, activeFilter]);
 
   // Group filtered payments by iso_date (newest date first)
   const groupedPayments = useMemo(() => {
@@ -190,20 +180,11 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
     return trips.find((t) => t.id === selectedTx.trip_id) || null;
   }, [selectedTx, trips]);
 
-  const assignableTrips = useMemo(() => {
-    const targetIso = selectedTx?.iso_date || CURRENT_DEMO_ISO_DATE;
-    const sameDayTrips = trips.filter(
-      (t) =>
-        t.start_time.slice(0, 10) === targetIso &&
-        t.status !== TripStatus.CANCELLED
-    );
-    if (sameDayTrips.length > 0) return sameDayTrips;
-    return trips.filter(
-      (t) =>
-        t.start_time.slice(0, 10) === CURRENT_DEMO_ISO_DATE &&
-        t.status !== TripStatus.CANCELLED
-    );
-  }, [trips, selectedTx]);
+  // Payments can only be assigned to an ACTIVE trip (never to completed or cancelled trips)
+  const assignableTrips = useMemo(
+    () => trips.filter((t) => t.status === TripStatus.ACTIVE),
+    [trips]
+  );
 
   const getTripPillLabel = (tripId: string | null): string | null => {
     if (!tripId) return null;
@@ -265,24 +246,6 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
           Payments
         </h1>
         <ThemeToggleButton />
-      </div>
-
-      {/* Search Bar (Name, amount or transaction ID) */}
-      <div
-        className={`h-12 px-4 rounded-2xl flex items-center gap-3 ${
-          isDark
-            ? 'bg-[#141B2D] text-white'
-            : 'bg-white border border-slate-200/80 text-[#0F172A] shadow-xs'
-        }`}
-      >
-        <Search className="w-5 h-5 text-[#8E9BAE] shrink-0" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Name, amount or transaction ID"
-          className="w-full bg-transparent text-sm focus:outline-none placeholder:text-[#8E9BAE]"
-        />
       </div>
 
       {/* Date Range Filter Chips (Day, Week, Month, Custom) */}
@@ -717,11 +680,11 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                       : ''}
                   </p>
                 </div>
-              ) : (
+              ) : assignableTrips.length > 0 ? (
                 <div className="space-y-2">
                   <p className="text-xs font-extrabold uppercase tracking-wider text-[#F5BA36] flex items-center gap-1.5">
                     <Route className="w-3.5 h-3.5" />
-                    <span>Needs trip — Tap to assign</span>
+                    <span>Needs trip — Tap to assign to active trip</span>
                   </p>
                   <div className="space-y-2 max-h-44 overflow-y-auto">
                     {assignableTrips.map((tr) => {
@@ -753,9 +716,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                           <div>
                             <p className="font-bold text-sm">{label}</p>
                             <p className="text-[11px] text-[#8E9BAE] mt-0.5">
-                              {tr.status === TripStatus.ACTIVE
-                                ? `● Active · Started ${timeStr}`
-                                : `Started ${timeStr}`}
+                              ● Active · Started {timeStr}
                             </p>
                           </div>
                           <span className="px-2.5 py-1 rounded-lg bg-[#2CD48D] text-[#052115] font-extrabold">
@@ -765,6 +726,22 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                       );
                     })}
                   </div>
+                </div>
+              ) : (
+                <div
+                  className={`rounded-2xl p-4 border text-xs ${
+                    isDark
+                      ? 'bg-[#0B0F1A] border-white/10 text-[#8E9BAE]'
+                      : 'bg-[#F7F9FC] border-slate-200/80 text-slate-600'
+                  }`}
+                >
+                  <p className="font-extrabold text-[#F5BA36] flex items-center gap-1.5">
+                    <Route className="w-3.5 h-3.5" />
+                    <span>Unassigned payment</span>
+                  </p>
+                  <p className="mt-1">
+                    No active trip right now. Payments can only be linked to an active trip.
+                  </p>
                 </div>
               )}
             </div>

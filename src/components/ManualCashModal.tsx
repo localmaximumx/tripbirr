@@ -147,11 +147,10 @@ export const ManualCashModal: React.FC<ManualCashModalProps> = ({
             >
               <option value="">Unassigned (No Trip)</option>
               {trips
-                .filter((t) => t.status !== TripStatus.CANCELLED)
+                .filter((t) => t.status === TripStatus.ACTIVE)
                 .map((trip) => (
                   <option key={trip.id} value={trip.id}>
-                    {trip.status === TripStatus.ACTIVE ? '[ACTIVE] ' : ''}
-                    {trip.start_location_name} → {trip.end_location_name || 'In Progress'}
+                    [ACTIVE] {trip.start_location_name} → {trip.end_location_name || 'In Progress'}
                   </option>
                 ))}
             </select>

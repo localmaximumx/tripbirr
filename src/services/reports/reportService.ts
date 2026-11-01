@@ -356,18 +356,15 @@ export function generateReportCsv(
   }
 
   const headers = [
-    'Record ID',
     'Telebirr Transaction ID',
     'Type',
     'Payment Method',
     'Status',
     'Amount (ETB)',
-    'Amount Minor Units (Cents)',
     'Sender / Counterparty',
     'Phone Number',
     'Date',
     'Time',
-    'Associated Trip ID',
     'Trip Route',
     'Account Balance (ETB)',
   ];
@@ -390,18 +387,15 @@ export function generateReportCsv(
         : '';
 
     return [
-      tx.id,
       tx.transaction_id || '',
       tx.transaction_type,
       tx.payment_method,
       tx.transaction_status,
       majorAmt,
-      tx.amount_minor_units,
       tx.sender_name || '',
       tx.sender_phone || '',
       tx.transaction_date,
       tx.transaction_time,
-      tx.trip_id || '',
       route,
       majorBal,
     ]
@@ -425,7 +419,6 @@ export function generateTripsCsv(
   };
 
   const headers = [
-    'Trip ID',
     'Status',
     'Start Location',
     'End Location',
@@ -440,7 +433,6 @@ export function generateTripsCsv(
   const rows = trips.map((trip) => {
     const summary = calculateTripTotalMinorUnits(trip.id, transactions);
     return [
-      trip.id,
       trip.status,
       trip.start_location_name,
       trip.end_location_name || 'In progress',

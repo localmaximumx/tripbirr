@@ -142,13 +142,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     ...todayIncoming.filter((tx) => tx.id !== 'tx_nov1_01' && tx.id !== 'tx_nov1_03'),
   ].slice(0, 4);
 
+  // Payments can only be assigned to an ACTIVE trip (never to completed or cancelled trips)
   const assignableTrips = useMemo(
-    () =>
-      trips.filter(
-        (t) =>
-          t.start_time.slice(0, 10) === CURRENT_DEMO_ISO_DATE &&
-          t.status !== TripStatus.CANCELLED
-      ),
+    () => trips.filter((t) => t.status === TripStatus.ACTIVE),
     [trips]
   );
 
@@ -267,34 +263,28 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <div className="flex items-center justify-between">
           <p className="text-sm font-medium text-[#B4C6EE]">Today&apos;s earnings</p>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                updateSettings({
-                  privacy_hide_balance: !settings.privacy_hide_balance,
-                });
-              }}
-              className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-[#B4C6EE] hover:text-white transition-colors cursor-pointer"
-              title={
-                settings.privacy_hide_balance
-                  ? 'Show earnings balance'
-                  : 'Hide earnings balance for privacy'
-              }
-              aria-label="Toggle balance privacy"
-            >
-              {settings.privacy_hide_balance ? (
-                <EyeOff className="w-3.5 h-3.5" />
-              ) : (
-                <Eye className="w-3.5 h-3.5" />
-              )}
-            </button>
-            <span className="text-xs font-semibold text-[#B4C6EE] flex items-center gap-0.5">
-              <span>Reports</span>
-              <ChevronRight className="w-4 h-4" />
-            </span>
-          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              updateSettings({
+                privacy_hide_balance: !settings.privacy_hide_balance,
+              });
+            }}
+            className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-[#B4C6EE] hover:text-white transition-colors cursor-pointer"
+            title={
+              settings.privacy_hide_balance
+                ? 'Show earnings balance'
+                : 'Hide earnings balance for privacy'
+            }
+            aria-label="Toggle balance visibility"
+          >
+            {settings.privacy_hide_balance ? (
+              <EyeOff className="w-4 h-4" />
+            ) : (
+              <Eye className="w-4 h-4" />
+            )}
+          </button>
         </div>
 
         <div className="mt-1.5 flex items-baseline">
@@ -813,11 +803,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                       : ''}
                   </p>
                 </div>
-              ) : (
+              ) : assignableTrips.length > 0 ? (
                 <div className="space-y-2">
                   <p className="text-xs font-extrabold uppercase tracking-wider text-[#F5BA36] flex items-center gap-1.5">
                     <Route className="w-3.5 h-3.5" />
-                    <span>Needs trip — Tap to assign</span>
+                    <span>Needs trip — Tap to assign to active trip</span>
                   </p>
                   <div className="space-y-2 max-h-44 overflow-y-auto">
                     {assignableTrips.map((tr) => {
@@ -849,9 +839,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                           <div>
                             <p className="font-bold text-sm">{label}</p>
                             <p className="text-[11px] text-[#8E9BAE] mt-0.5">
-                              {tr.status === TripStatus.ACTIVE
-                                ? `● Active · Started ${timeStr}`
-                                : `Started ${timeStr}`}
+                              ● Active · Started {timeStr}
                             </p>
                           </div>
                           <span className="px-2.5 py-1 rounded-lg bg-[#2CD48D] text-[#052115] font-extrabold">
@@ -861,6 +849,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                       );
                     })}
                   </div>
+                </div>
+              ) : (
+                <div
+                  className={`rounded-2xl p-4 border text-xs ${
+                    isDark
+                      ? 'bg-[#0B0F1A] border-white/10 text-[#8E9BAE]'
+                      : 'bg-[#F7F9FC] border-slate-200/80 text-slate-600'
+                  }`}
+                >
+                  <p className="font-extrabold text-[#F5BA36] flex items-center gap-1.5">
+                    <Route className="w-3.5 h-3.5" />
+                    <span>Unassigned payment</span>
+                  </p>
+                  <p className="mt-1">
+                    No active trip right now. Payments can only be linked to an active trip.
+                  </p>
                 </div>
               )}
             </div>

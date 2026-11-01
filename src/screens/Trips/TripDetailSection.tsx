@@ -106,6 +106,7 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
   };
 
   const summary = calculateTripTotalMinorUnits(trip.id, transactions);
+  const isActive = trip.status === TripStatus.ACTIVE;
   const startShort = trip.start_location_name.replace(', Addis Ababa', '');
   const endShort = trip.end_location_name
     ? trip.end_location_name.replace(', Addis Ababa', '')
@@ -232,14 +233,16 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => onOpenCashModal(trip.id)}
-                className="min-h-[36px] px-3.5 py-1.5 rounded-full bg-[#F5BA36]/15 text-[#F5BA36] text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"
-              >
-                <Banknote className="w-3.5 h-3.5" />
-                <span>+ Cash</span>
-              </button>
+              {isActive && (
+                <button
+                  type="button"
+                  onClick={() => onOpenCashModal(trip.id)}
+                  className="min-h-[36px] px-3.5 py-1.5 rounded-full bg-[#F5BA36]/15 text-[#F5BA36] text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Banknote className="w-3.5 h-3.5" />
+                  <span>+ Cash</span>
+                </button>
+              )}
             </div>
 
             {/* Specific Trip Transactions List */}
@@ -325,8 +328,8 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
               </div>
             )}
 
-            {/* Quick Link Unassigned Payments to This Trip */}
-            {unassignedPayments.length > 0 && (
+            {/* Quick Link Unassigned Payments to This Trip — Only for Active Trips */}
+            {isActive && unassignedPayments.length > 0 && (
               <div
                 className={`rounded-[22px] p-4 border-[1.5px] space-y-2.5 ${
                   isDark
