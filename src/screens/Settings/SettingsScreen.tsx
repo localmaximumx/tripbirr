@@ -196,7 +196,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   Hide earnings balance on Home
                 </p>
                 <p className="text-xs text-[#8E9BAE] mt-0.5">
-                  Masks your daily total and Telebirr/cash breakdown as ••••
+                  Masks your daily total and Telebirr/cash breakdown as ****
                 </p>
               </div>
               <button
@@ -656,149 +656,117 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       ) : (
         /* OVERVIEW TAB: Driver Vehicle Details, App Icon, Automated Test Suite & RN/Kotlin Code */
         <div className="space-y-4">
+          {/* Unified Complete Driver & Vehicle Profile Summary */}
           <section
-            className={`rounded-[26px] p-5 space-y-3 ${
+            className={`rounded-[26px] p-5 space-y-4 ${
               isDark
                 ? 'bg-[#141B2D]'
                 : 'bg-white border border-slate-200/80 shadow-xs'
             }`}
           >
-            <div className="flex items-center justify-between">
-              <h3
-                className={`text-base font-extrabold ${
-                  isDark ? 'text-white' : 'text-[#0F172A]'
-                }`}
-              >
-                Driver &amp; Vehicle Details
-              </h3>
+            <div className="flex items-center justify-between pb-1">
+              <div>
+                <h3
+                  className={`text-base font-extrabold ${
+                    isDark ? 'text-white' : 'text-[#0F172A]'
+                  }`}
+                >
+                  {lang === 'am' ? 'የአሽከርካሪ እና ተሽከርካሪ ዝርዝር መረጃ' : 'Driver & Vehicle Profile'}
+                </h3>
+                <p className="text-xs text-[#8E9BAE] mt-0.5">
+                  {lang === 'am' ? 'የተመዘገበ ሙሉ መረጃ' : 'Complete driver registration and ledger setup'}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={onOpenDriverProfile}
-                className="px-3 py-1.5 rounded-xl bg-[#2CD48D] text-[#052115] text-xs font-extrabold cursor-pointer"
+                className="px-3.5 py-1.5 rounded-xl bg-[#2CD48D] hover:bg-[#25B87B] text-[#052115] text-xs font-extrabold transition-all cursor-pointer shadow-xs"
               >
-                Edit Profile
+                {lang === 'am' ? 'መገለጫ አርትዕ' : 'Edit Profile'}
               </button>
             </div>
 
             <div className="grid grid-cols-2 gap-2.5 text-xs">
-              <div
-                className={`p-3 rounded-2xl ${
-                  isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'
-                }`}
-              >
-                <p className="text-[#8E9BAE]">Greeting &amp; SMS Name</p>
-                <p
-                  className={`font-bold font-mono mt-0.5 ${
-                    isDark ? 'text-white' : 'text-slate-900'
-                  }`}
-                >
-                  Dear {driverFirstName}
-                </p>
-              </div>
-
-              <div
-                className={`p-3 rounded-2xl ${
-                  isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'
-                }`}
-              >
-                <p className="text-[#8E9BAE]">Vehicle Plate</p>
-                <p
-                  className={`font-bold font-mono mt-0.5 ${
-                    isDark ? 'text-white' : 'text-slate-900'
-                  }`}
-                >
-                  {driverProfile.vehicle_plate}
-                </p>
-              </div>
-
-              <div
-                className={`p-3 rounded-2xl ${
-                  isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'
-                }`}
-              >
-                <p className="text-[#8E9BAE]">Primary Corridor</p>
-                <p
-                  className={`font-bold truncate mt-0.5 ${
-                    isDark ? 'text-white' : 'text-slate-900'
-                  }`}
-                >
-                  {driverProfile.primary_corridor}
-                </p>
-              </div>
-
-              <div
-                className={`p-3 rounded-2xl ${
-                  isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'
-                }`}
-              >
-                <p className="text-[#8E9BAE]">Daily Target</p>
-                <p className="font-bold font-mono text-[#2CD48D] mt-0.5">
-                  {formatMinorUnits(
-                    driverProfile.daily_target_minor_units,
-                    settings.currency_display
-                  )}
-                </p>
-              </div>
-            </div>
-          </section>
-
-          {/* Additional Driver Profile Info Card */}
-          <section
-            className={`rounded-[26px] p-5 space-y-3 ${
-              isDark
-                ? 'bg-[#141B2D]'
-                : 'bg-white border border-slate-200/80 shadow-xs'
-            }`}
-          >
-            <h4
-              className={`text-sm font-extrabold ${
-                isDark ? 'text-white' : 'text-[#0F172A]'
-              }`}
-            >
-              Account &amp; Registration Summary
-            </h4>
-
-            <div className="grid grid-cols-2 gap-2.5 text-xs">
               <div className={`p-3 rounded-2xl ${isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'}`}>
-                <p className="text-[#8E9BAE]">Full Name</p>
+                <p className="text-[#8E9BAE]">{lang === 'am' ? 'ሙሉ ስም' : 'Full Name'}</p>
                 <p className={`font-bold mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   {driverProfile.full_name}
                 </p>
               </div>
 
               <div className={`p-3 rounded-2xl ${isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'}`}>
-                <p className="text-[#8E9BAE]">Telebirr Phone</p>
+                <p className="text-[#8E9BAE]">{lang === 'am' ? 'የቴሌብር ስልክ' : 'Telebirr Phone'}</p>
                 <p className={`font-bold font-mono mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   {driverProfile.telebirr_phone}
                 </p>
               </div>
 
               <div className={`p-3 rounded-2xl ${isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'}`}>
-                <p className="text-[#8E9BAE]">Vehicle Type</p>
+                <p className="text-[#8E9BAE]">{lang === 'am' ? 'የተሽከርካሪ አይነት' : 'Vehicle Type'}</p>
                 <p className={`font-bold mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   {vehicleRoleLabel}
                 </p>
               </div>
 
               <div className={`p-3 rounded-2xl ${isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'}`}>
-                <p className="text-[#8E9BAE]">Sub-City</p>
+                <p className="text-[#8E9BAE]">{lang === 'am' ? 'የሰሌዳ ቁጥር' : 'Vehicle Plate'}</p>
+                <p className={`font-bold font-mono mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  {driverProfile.vehicle_plate}
+                </p>
+              </div>
+
+              <div className={`p-3 rounded-2xl ${isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'}`}>
+                <p className="text-[#8E9BAE]">{lang === 'am' ? 'ዋና መስመር' : 'Primary Corridor'}</p>
+                <p className={`font-bold truncate mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  {driverProfile.primary_corridor}
+                </p>
+              </div>
+
+              <div className={`p-3 rounded-2xl ${isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'}`}>
+                <p className="text-[#8E9BAE]">{lang === 'am' ? 'ክፍለ ከተማ' : 'Sub-City'}</p>
                 <p className={`font-bold mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   {driverProfile.sub_city || 'Addis Ababa'}
                 </p>
               </div>
 
               <div className={`p-3 rounded-2xl ${isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'}`}>
-                <p className="text-[#8E9BAE]">License Number</p>
+                <p className="text-[#8E9BAE]">{lang === 'am' ? 'የመንጃ ፈቃድ' : 'License Number'}</p>
                 <p className={`font-bold font-mono mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   {driverProfile.driver_license_number || 'AA-DL-82910'}
                 </p>
               </div>
 
               <div className={`p-3 rounded-2xl ${isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'}`}>
-                <p className="text-[#8E9BAE]">Account Type</p>
-                <p className={`font-bold mt-0.5 text-[#2CD48D]`}>
-                  {driverProfile.account_type === 'PERSONAL_EMONEY' ? 'Personal E-Money' : 'Merchant / Agent'}
+                <p className="text-[#8E9BAE]">{lang === 'am' ? 'የአካውንት አይነት' : 'Account Type'}</p>
+                <p className="font-bold mt-0.5 text-[#2CD48D]">
+                  {driverProfile.account_type === 'PERSONAL_EMONEY'
+                    ? lang === 'am'
+                      ? 'የግል ኢ-ገንዘብ (Personal)'
+                      : 'Personal E-Money'
+                    : lang === 'am'
+                    ? 'ነጋዴ / ወኪል (Merchant)'
+                    : 'Merchant / Agent'}
                 </p>
+              </div>
+
+              <div className={`p-3 rounded-2xl col-span-2 ${isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'}`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[#8E9BAE]">{lang === 'am' ? 'የቀን ገቢ ግብ' : 'Daily Earnings Target'}</p>
+                    <p className="font-extrabold font-mono text-base text-[#2CD48D] mt-0.5">
+                      {formatMinorUnits(
+                        driverProfile.daily_target_minor_units,
+                        settings.currency_display
+                      )}
+                    </p>
+                  </div>
+                  <div className="text-right text-[11px] text-[#8E9BAE]">
+                    <p>{lang === 'am' ? 'የኤስኤምኤስ ሰላምታ' : 'SMS Greeting'}</p>
+                    <p className={`font-bold font-mono mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                      Dear {driverFirstName}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </section>

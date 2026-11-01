@@ -382,7 +382,7 @@ export const ReportsScreen: React.FC = () => {
         </div>
 
         <p className="text-[40px] font-extrabold tracking-tight leading-none mt-1.5">
-          {settings.privacy_hide_balance ? `${currency} ••••` : `${currency} ${formatWholeNumberWithCommas(totalMinor)}`}
+          {settings.privacy_hide_balance ? `${currency} ****` : `${currency} ${formatWholeNumberWithCommas(totalMinor)}`}
         </p>
 
         {activeDayPoint ? (

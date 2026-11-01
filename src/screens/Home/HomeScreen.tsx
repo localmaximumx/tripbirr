@@ -293,7 +293,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <div className="mt-1.5 flex items-baseline">
           {settings.privacy_hide_balance ? (
             <span className="text-[40px] font-extrabold tracking-widest leading-none">
-              {currency} ••••
+              {currency} ****
             </span>
           ) : (
             <>
