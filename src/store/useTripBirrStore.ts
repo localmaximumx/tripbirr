@@ -130,6 +130,9 @@ interface TripBirrState {
         | 'start_longitude'
         | 'end_latitude'
         | 'end_longitude'
+        | 'route_distance_meters'
+        | 'route_polyline'
+        | 'route_source'
       >
     >
   ) => void;

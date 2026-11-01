@@ -56,6 +56,9 @@ export interface TripRecord {
   duration: number | null; // Duration in seconds
   status: TripStatus;
   notes: string | null;
+  route_distance_meters?: number | null;
+  route_polyline?: [number, number][] | null;
+  route_source?: 'OSRM_ROAD' | 'LOCAL_CORRIDOR_GRAPH' | 'ESTIMATED_ROAD' | null;
   created_at: string;
   updated_at: string;
 }

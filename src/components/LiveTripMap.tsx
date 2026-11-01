@@ -14,6 +14,12 @@ import { TransactionRecord, TripRecord, TripStatus } from '../database/schema';
 import {
   ADDIS_ABABA_LANDMARKS,
   calculateDistanceMeters,
+} from '../services/location/locationService';
+import {
+  getHybridRoadRoute,
+  RoadRouteResult,
+} from '../services/location/routingService';
+import {
   captureSingleGpsPoint,
   reverseGeocodeWithOfflineFallback,
 } from '../services/location/locationService';
@@ -157,6 +163,33 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
     trip.end_location_name || 'Urael / Atlas, Addis Ababa'
   );
   const [isUpdatingGps, setIsUpdatingGps] = useState<boolean>(false);
+  const [roadRoute, setRoadRoute] = useState<RoadRouteResult | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    getHybridRoadRoute(
+      startLat,
+      startLng,
+      liveLat,
+      liveLng,
+      trip.route_polyline,
+      trip.route_distance_meters
+    ).then((result) => {
+      if (isMounted) {
+        setRoadRoute(result);
+        if (!trip.route_distance_meters || !trip.route_polyline) {
+          updateTripDetails(trip.id, {
+            route_distance_meters: result.distanceMeters,
+            route_polyline: result.polyline,
+            route_source: result.source,
+          });
+        }
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [trip.id, startLat, startLng, liveLat, liveLng]);
 
   // Leaflet GPS Map refs
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -291,10 +324,13 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
     const group = layerGroupRef.current;
     group.clearLayers();
 
-    const curvedPts = buildCurvedLatLngs(startLat, startLng, liveLat, liveLng);
+    const routePts =
+      roadRoute?.polyline && roadRoute.polyline.length >= 2
+        ? roadRoute.polyline
+        : buildCurvedLatLngs(startLat, startLng, liveLat, liveLng);
 
     // Outer glow polyline
-    L.polyline(curvedPts, {
+    L.polyline(routePts, {
       color: '#5CA4F8',
       weight: 9,
       opacity: 0.28,
@@ -303,7 +339,7 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
     }).addTo(group);
 
     // Primary emerald/blue route line
-    L.polyline(curvedPts, {
+    L.polyline(routePts, {
       color: '#2CD48D',
       weight: 4.5,
       opacity: 0.95,
@@ -312,7 +348,7 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
     }).addTo(group);
 
     // Animated white flow dash
-    L.polyline(curvedPts, {
+    L.polyline(routePts, {
       color: '#FFFFFF',
       weight: 2,
       opacity: 0.75,
@@ -370,6 +406,9 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
   const displacementKm = (
     calculateDistanceMeters(startLat, startLng, liveLat, liveLng) / 1000
   ).toFixed(2);
+  const distanceKmDisplay = roadRoute
+    ? roadRoute.formattedDistanceKm
+    : displacementKm;
 
   // Actively acquire live GPS coordinates, update the map & trip, and fly to user position
   const handleRefreshLiveGps = async () => {
@@ -590,7 +629,10 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
             </span>
             <span className="text-white/30">·</span>
             <span className="text-xs font-extrabold font-mono text-[#F5BA36]">
-              {displacementKm} km
+              {distanceKmDisplay} km
+            </span>
+            <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-[#2CD48D]/20 text-[#2CD48D]">
+              {roadRoute?.isActualRoad ? "Road" : "Est. Road"}
             </span>
           </div>
 
@@ -801,31 +843,76 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
                   );
                 })}
 
-              {/* Clean Curved Route Ribbon */}
-              <path
-                d={`M ${startPt.x} ${startPt.y} Q ${ctrlX} ${ctrlY} ${currentPt.x} ${currentPt.y}`}
-                fill="none"
-                stroke="#5CA4F8"
-                strokeOpacity="0.28"
-                strokeWidth="12"
-                strokeLinecap="round"
-              />
-              <path
-                d={`M ${startPt.x} ${startPt.y} Q ${ctrlX} ${ctrlY} ${currentPt.x} ${currentPt.y}`}
-                fill="none"
-                stroke="url(#activeRouteGradient)"
-                strokeWidth="5"
-                strokeLinecap="round"
-              />
-              <path
-                d={`M ${startPt.x} ${startPt.y} Q ${ctrlX} ${ctrlY} ${currentPt.x} ${currentPt.y}`}
-                fill="none"
-                stroke="#FFFFFF"
-                strokeOpacity="0.75"
-                strokeWidth="2"
-                strokeDasharray="6 12"
-                className="tb-route-dash"
-              />
+              {/* Real Road Route Polyline or Clean Fallback Ribbon */}
+              {roadRoute?.polyline && roadRoute.polyline.length >= 2 ? (
+                (() => {
+                  const svgRoadPts = roadRoute.polyline
+                    .map(([lat, lng]: [number, number]) => {
+                      const p = projectToSvg(lat, lng);
+                      return `${p.x},${p.y}`;
+                    })
+                    .join(' ');
+                  return (
+                    <g>
+                      <polyline
+                        points={svgRoadPts}
+                        fill="none"
+                        stroke="#5CA4F8"
+                        strokeOpacity="0.32"
+                        strokeWidth="11"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <polyline
+                        points={svgRoadPts}
+                        fill="none"
+                        stroke="url(#activeRouteGradient)"
+                        strokeWidth="5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <polyline
+                        points={svgRoadPts}
+                        fill="none"
+                        stroke="#FFFFFF"
+                        strokeOpacity="0.75"
+                        strokeWidth="2"
+                        strokeDasharray="6 12"
+                        className="tb-route-dash"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </g>
+                  );
+                })()
+              ) : (
+                <g>
+                  <path
+                    d={`M ${startPt.x} ${startPt.y} Q ${ctrlX} ${ctrlY} ${currentPt.x} ${currentPt.y}`}
+                    fill="none"
+                    stroke="#5CA4F8"
+                    strokeOpacity="0.28"
+                    strokeWidth="12"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d={`M ${startPt.x} ${startPt.y} Q ${ctrlX} ${ctrlY} ${currentPt.x} ${currentPt.y}`}
+                    fill="none"
+                    stroke="url(#activeRouteGradient)"
+                    strokeWidth="5"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d={`M ${startPt.x} ${startPt.y} Q ${ctrlX} ${ctrlY} ${currentPt.x} ${currentPt.y}`}
+                    fill="none"
+                    stroke="#FFFFFF"
+                    strokeOpacity="0.75"
+                    strokeWidth="2"
+                    strokeDasharray="6 12"
+                    className="tb-route-dash"
+                  />
+                </g>
+              )}
 
               {/* Start Origin Pin */}
               <g filter="url(#pinDropShadow)">
@@ -1026,10 +1113,10 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
         {/* Distance Measure */}
         <div className="text-right">
           <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#8E9BAE]">
-            Distance
+            {roadRoute?.isActualRoad ? "Road Distance" : "Est. Distance"}
           </p>
           <p className="text-sm font-extrabold font-mono text-[#F5BA36] mt-0.5">
-            {displacementKm} km
+            {distanceKmDisplay} km
           </p>
         </div>
       </div>
