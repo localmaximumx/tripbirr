@@ -7,6 +7,7 @@ react {
     reactNativeDir = file("../react-native/node_modules/react-native")
     codegenDir = file("../react-native/node_modules/@react-native/codegen")
     cliFile = file("../react-native/node_modules/react-native/cli.js")
+    entryFile = file("../react-native/index.js")
 }
 
 android {
