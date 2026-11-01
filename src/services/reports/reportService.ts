@@ -411,3 +411,97 @@ export function generateReportCsv(
 
   return [headers.map(escapeCsvCell).join(','), ...rows].join('\n');
 }
+
+export const generateTransactionsCsv = generateReportCsv;
+
+export function generateTripsCsv(
+  trips: TripRecord[],
+  transactions: TransactionRecord[]
+): string {
+  const escapeCsvCell = (val: string | number | null | undefined): string => {
+    if (val === null || val === undefined) return '""';
+    const str = String(val).replace(/"/g, '""');
+    return `"${str}"`;
+  };
+
+  const headers = [
+    'Trip ID',
+    'Status',
+    'Start Location',
+    'End Location',
+    'Start Time',
+    'End Time',
+    'Payment Count',
+    'Telebirr (ETB)',
+    'Cash (ETB)',
+    'Total Earnings (ETB)',
+  ];
+
+  const rows = trips.map((trip) => {
+    const summary = calculateTripTotalMinorUnits(trip.id, transactions);
+    return [
+      trip.id,
+      trip.status,
+      trip.start_location_name,
+      trip.end_location_name || 'In progress',
+      trip.start_time,
+      trip.end_time || '',
+      summary.paymentCount,
+      (summary.telebirrMinorUnits / 100).toFixed(2),
+      (summary.cashMinorUnits / 100).toFixed(2),
+      (summary.totalMinorUnits / 100).toFixed(2),
+    ]
+      .map(escapeCsvCell)
+      .join(',');
+  });
+
+  return [headers.map(escapeCsvCell).join(','), ...rows].join('\n');
+}
+
+export function generateDailySummaryCsv(
+  input: DailyEarningsPoint[] | FinancialReportSummary
+): string {
+  const series = Array.isArray(input) ? input : input.dailySeries;
+  const escapeCsvCell = (val: string | number | null | undefined): string => {
+    if (val === null || val === undefined) return '""';
+    const str = String(val).replace(/"/g, '""');
+    return `"${str}"`;
+  };
+
+  const headers = [
+    'ISO Date',
+    'Label',
+    'Payment Count',
+    'Telebirr (ETB)',
+    'Cash (ETB)',
+    'Combined Net Income (ETB)',
+  ];
+
+  const rows = series.map((day) =>
+    [
+      day.isoDate,
+      day.label,
+      day.paymentCount,
+      (day.telebirrMinorUnits / 100).toFixed(2),
+      (day.cashMinorUnits / 100).toFixed(2),
+      (day.netMinorUnits / 100).toFixed(2),
+    ]
+      .map(escapeCsvCell)
+      .join(',')
+  );
+
+  return [headers.map(escapeCsvCell).join(','), ...rows].join('\n');
+}
+
+export function triggerCsvDownload(filename: string, csvContent: string): void {
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+

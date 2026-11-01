@@ -1,34 +1,42 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Banknote,
   CheckCircle2,
   Edit3,
   Link2,
   MapPin,
-  Navigation,
   Plus,
+  Search,
   StopCircle,
   Trash2,
   Unlink,
 } from 'lucide-react';
 import { useTripBirrStore } from '../../store/useTripBirrStore';
 import { TransactionStatus, TripRecord, TripStatus } from '../../database/schema';
+import { CURRENT_DEMO_ISO_DATE } from '../../database/database';
 import {
   calculateTripTotalMinorUnits,
   isPositiveIncomingTransaction,
 } from '../../services/reports/reportService';
-import {
-  formatDurationSeconds,
-  formatIsoToDateAndTime,
-  formatIsoToShortTime,
-  formatMinorUnits,
-} from '../../utils/formatters';
+import { formatMinorUnits } from '../../utils/formatters';
 import { LiveTripMap } from '../../components/LiveTripMap';
 import { calculateDistanceMeters } from '../../services/location/locationService';
 
 interface TripsScreenProps {
   onOpenTripModal: (mode: 'START' | 'END') => void;
   onOpenCashModal: (tripId?: string | null) => void;
+}
+
+function formatTripClockTime(iso: string): string {
+  const timePart = iso.slice(11, 16);
+  const parts = timePart.split(':');
+  if (parts.length < 2) return timePart;
+  const h = parseInt(parts[0], 10);
+  const m = parts[1];
+  if (isNaN(h)) return timePart;
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${m} ${suffix}`;
 }
 
 export const TripsScreen: React.FC<TripsScreenProps> = ({
@@ -45,30 +53,42 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
     cancelTrip,
   } = useTripBirrStore();
 
+  const isDark = settings.theme === 'dark';
   const currency = settings.currency_display;
-  const [selectedTripId, setSelectedTripId] = useState<string>(
-    trips[0]?.id || ''
-  );
+
+  const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | TripStatus>('ALL');
+  const [expandedTripId, setExpandedTripId] = useState<string | null>(null);
   const [isEditingTrip, setIsEditingTrip] = useState(false);
   const [editStartName, setEditStartName] = useState('');
   const [editEndName, setEditEndName] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const filteredTrips = trips.filter((t) =>
-    statusFilter === 'ALL' ? true : t.status === statusFilter
-  );
-
-  const selectedTrip: TripRecord | null =
-    trips.find((t) => t.id === selectedTripId) || filteredTrips[0] || null;
-
-  const selectedSummary = selectedTrip
-    ? calculateTripTotalMinorUnits(selectedTrip.id, transactions)
-    : null;
+  // Show today's trips first (matching Page 2), and allow searching across all trips
+  const visibleTrips = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return trips.filter((t) => {
+      // Hide historical Oct test trips unless explicitly searched
+      if (!q && t.start_time.slice(0, 10) !== CURRENT_DEMO_ISO_DATE) {
+        return false;
+      }
+      if (statusFilter !== 'ALL' && t.status !== statusFilter) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        t.start_location_name.toLowerCase().includes(q) ||
+        (t.end_location_name || '').toLowerCase().includes(q) ||
+        t.start_time.toLowerCase().includes(q) ||
+        (t.notes || '').toLowerCase().includes(q)
+      );
+    });
+  }, [trips, statusFilter, searchQuery]);
 
   const unassignedPayments = transactions.filter(
     (tx) =>
+      tx.iso_date === CURRENT_DEMO_ISO_DATE &&
       isPositiveIncomingTransaction(tx) &&
       tx.transaction_status === TransactionStatus.VALID &&
       tx.trip_id === null
@@ -81,510 +101,507 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
     setIsEditingTrip(true);
   };
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = (e: React.FormEvent, trip: TripRecord) => {
     e.preventDefault();
-    if (!selectedTrip) return;
-    updateTripDetails(selectedTrip.id, {
-      start_location_name: editStartName.trim() || selectedTrip.start_location_name,
-      end_location_name: editEndName.trim() || selectedTrip.end_location_name,
+    updateTripDetails(trip.id, {
+      start_location_name: editStartName.trim() || trip.start_location_name,
+      end_location_name: editEndName.trim() || trip.end_location_name,
       notes: editNotes.trim() || null,
     });
     setIsEditingTrip(false);
   };
 
-  const activeTrip = trips.find((t) => t.status === TripStatus.ACTIVE);
+  const filterOptions: { id: 'ALL' | TripStatus; label: string }[] = [
+    { id: 'ALL', label: 'All' },
+    { id: TripStatus.ACTIVE, label: 'Active' },
+    { id: TripStatus.COMPLETED, label: 'Completed' },
+    { id: TripStatus.CANCELLED, label: 'Cancelled' },
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* Header & Primary Trip Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-[#172B25] dark:text-[#EDF6F0]">
-            Trips & Payment Associations
-          </h1>
-          <p className="text-xs text-[#75847D] dark:text-[#94A8A0] mt-0.5">
-            Record start and destination points and visualize completed trip coordinates
-          </p>
-        </div>
+    <div className="space-y-4">
+      {/* Page Title (Matches Page 2) */}
+      <h1
+        className={`text-[32px] font-extrabold tracking-tight pt-1 ${
+          isDark ? 'text-white' : 'text-[#0F172A]'
+        }`}
+      >
+        Trips
+      </h1>
 
-        <div className="flex items-center gap-3">
-          {activeTrip ? (
-            <button
-              type="button"
-              onClick={() => onOpenTripModal('END')}
-              className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#123C35] dark:bg-[#43C99A] text-white dark:text-[#101A17] text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0"
-            >
-              <StopCircle className="w-4 h-4" />
-              End Active Trip
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onOpenTripModal('START')}
-              className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#16866A] dark:bg-[#43C99A] text-white dark:text-[#101A17] text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0"
-            >
-              <Navigation className="w-4 h-4" />
-              Start New Trip
-            </button>
-          )}
-        </div>
+      {/* Search Bar (Matches Page 2: "Search places or dates") */}
+      <div
+        className={`h-12 px-4 rounded-2xl flex items-center gap-3 ${
+          isDark
+            ? 'bg-[#141B2D] text-white'
+            : 'bg-white border border-slate-200/80 text-[#0F172A] shadow-xs'
+        }`}
+      >
+        <Search className="w-5 h-5 text-[#8E9BAE] shrink-0" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search places or dates"
+          className="w-full bg-transparent text-sm focus:outline-none placeholder:text-[#8E9BAE]"
+        />
       </div>
 
-      {/* Interactive Filter Tabs */}
-      <div className="flex items-center gap-1 p-1 bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] rounded-xl w-fit">
-        {(['ALL', TripStatus.ACTIVE, TripStatus.COMPLETED, TripStatus.CANCELLED] as const).map(
-          (st) => (
+      {/* Filter Pills Row (All, Active, Completed, Cancelled) */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+        {filterOptions.map((opt) => {
+          const isSelected = statusFilter === opt.id;
+          return (
             <button
-              key={st}
+              key={opt.id}
               type="button"
-              onClick={() => setStatusFilter(st)}
-              className={`min-h-[38px] px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 ${
-                statusFilter === st
-                  ? 'bg-[#123C35] text-white dark:bg-[#43C99A] dark:text-[#101A17]'
-                  : 'text-[#75847D] dark:text-[#94A8A0] hover:text-[#172B25] dark:hover:text-[#EDF6F0]'
+              onClick={() => setStatusFilter(opt.id)}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                isSelected
+                  ? 'bg-[#2CD48D] text-[#052115]'
+                  : isDark
+                  ? 'bg-[#141B2D] text-white hover:bg-[#1C253D]'
+                  : 'bg-white text-[#0F172A] border border-slate-200/80'
               }`}
             >
-              {st === 'ALL' ? `All Trips (${trips.length})` : st}
+              {opt.label}
             </button>
-          )
-        )}
+          );
+        })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Trip History Cards (5 cols) */}
-        <div className="lg:col-span-5 space-y-3">
-          {filteredTrips.length === 0 ? (
-            <div className="p-8 rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] text-center">
-              <p className="text-sm font-semibold text-[#172B25] dark:text-[#EDF6F0]">
-                No trips match this filter
-              </p>
-              <p className="text-xs text-[#75847D] dark:text-[#94A8A0] mt-1">
-                Tap Start New Trip to record your starting location.
-              </p>
-            </div>
-          ) : (
-            filteredTrips.map((trip) => {
-              const summary = calculateTripTotalMinorUnits(trip.id, transactions);
-              const isSelected = selectedTrip?.id === trip.id;
-              const hasBothCoords =
-                typeof trip.start_latitude === 'number' &&
-                typeof trip.start_longitude === 'number' &&
-                typeof trip.end_latitude === 'number' &&
-                typeof trip.end_longitude === 'number';
-              const distKm = hasBothCoords
-                ? (
-                    calculateDistanceMeters(
-                      trip.start_latitude!,
-                      trip.start_longitude!,
-                      trip.end_latitude!,
-                      trip.end_longitude!
-                    ) / 1000
-                  ).toFixed(2)
-                : null;
+      {/* Trip Cards List (Matches Page 2 verbatim, with expandable map & payment details) */}
+      <div className="space-y-3.5">
+        {visibleTrips.length === 0 ? (
+          <div
+            className={`rounded-[24px] p-8 text-center ${
+              isDark
+                ? 'bg-[#141B2D] text-[#8E9BAE]'
+                : 'bg-white border border-slate-200 text-slate-500'
+            }`}
+          >
+            <p className="text-sm font-bold">No trips match this filter</p>
+            <p className="text-xs mt-1">Tap Start trip below to begin a new trip.</p>
+          </div>
+        ) : (
+          visibleTrips.map((trip) => {
+            const summary = calculateTripTotalMinorUnits(trip.id, transactions);
+            const isExpanded = expandedTripId === trip.id;
+            const isActive = trip.status === TripStatus.ACTIVE;
+            const isCancelled = trip.status === TripStatus.CANCELLED;
 
-              return (
-                <button
-                  key={trip.id}
-                  type="button"
+            const startShort = trip.start_location_name.replace(', Addis Ababa', '');
+            const endShort = trip.end_location_name
+              ? trip.end_location_name.replace(', Addis Ababa', '')
+              : 'In progress';
+
+            const durationMinutes = trip.duration
+              ? Math.max(1, Math.round(trip.duration / 60))
+              : 18;
+            const durationDisplay = isActive
+              ? `00:${String(durationMinutes).padStart(2, '0')}`
+              : `${durationMinutes} min`;
+
+            const amountMajorWhole = Math.round(
+              summary.totalMinorUnits / 100
+            ).toLocaleString('en-US');
+
+            const hasBothCoords =
+              typeof trip.start_latitude === 'number' &&
+              typeof trip.start_longitude === 'number' &&
+              typeof trip.end_latitude === 'number' &&
+              typeof trip.end_longitude === 'number';
+
+            const distKm = hasBothCoords
+              ? (
+                  calculateDistanceMeters(
+                    trip.start_latitude!,
+                    trip.start_longitude!,
+                    trip.end_latitude!,
+                    trip.end_longitude!
+                  ) / 1000
+                ).toFixed(2)
+              : null;
+
+            return (
+              <div
+                key={trip.id}
+                className={`rounded-[24px] transition-all overflow-hidden ${
+                  isActive
+                    ? isDark
+                      ? 'bg-[#141B2D] border-[1.5px] border-[#5CA4F8]/80'
+                      : 'bg-white border-[1.5px] border-[#5CA4F8] shadow-sm'
+                    : isDark
+                    ? 'bg-[#141B2D] border border-white/5'
+                    : 'bg-white border border-slate-200/80 shadow-xs'
+                }`}
+              >
+                {/* Card Summary Area (Matches Page 2) */}
+                <div
                   onClick={() => {
-                    setSelectedTripId(trip.id);
+                    setExpandedTripId(isExpanded ? null : trip.id);
                     setIsEditingTrip(false);
                     setConfirmDeleteId(null);
                   }}
-                  className={`w-full text-left p-5 rounded-2xl transition-colors border cursor-pointer ${
-                    isSelected
-                      ? 'bg-white dark:bg-[#192722] border-[#16866A] dark:border-[#43C99A] shadow-xs'
-                      : 'bg-white/80 dark:bg-[#192722]/70 border-[#E3EAE5] dark:border-[#253831] hover:border-[#16866A]/50'
-                  }`}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      setExpandedTripId(isExpanded ? null : trip.id);
+                    }
+                  }}
+                  className="p-5 cursor-pointer"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2 text-xs text-[#75847D] dark:text-[#94A8A0]">
-                        <span className="font-semibold text-[#16866A] dark:text-[#43C99A]">
-                          {trip.status}
-                        </span>
-                        <span aria-hidden="true">·</span>
-                        <span className="font-mono tabular-nums">
-                          {formatIsoToDateAndTime(trip.start_time)}
-                        </span>
-                      </div>
-
-                      <h3 className="text-sm font-bold text-[#172B25] dark:text-[#EDF6F0] mt-1">
-                        {trip.start_location_name.replace(', Addis Ababa', '')} →{' '}
-                        {(trip.end_location_name || 'In Progress').replace(', Addis Ababa', '')}
-                      </h3>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <p className="text-base font-bold font-mono tabular-nums text-[#172B25] dark:text-[#EDF6F0]">
-                        {formatMinorUnits(summary.totalMinorUnits, currency)}
-                      </p>
-                      <p className="text-xs font-mono text-[#75847D] dark:text-[#94A8A0]">
-                        {summary.paymentCount}{' '}
-                        {summary.paymentCount === 1 ? 'payment' : 'payments'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Start & End Coordinate Summary Row */}
-                  {hasBothCoords && (
-                    <div className="mt-2.5 px-2.5 py-1.5 rounded-lg bg-[#F5F7F5] dark:bg-[#101A17] text-[11px] font-mono text-[#75847D] dark:text-[#94A8A0] flex flex-wrap items-center justify-between gap-2">
-                      <span>
-                        {trip.start_latitude!.toFixed(4)}°N, {trip.start_longitude!.toFixed(4)}°E →{' '}
-                        {trip.end_latitude!.toFixed(4)}°N, {trip.end_longitude!.toFixed(4)}°E
+                  <div className="flex items-center justify-between gap-2">
+                    {isActive ? (
+                      <span className="px-3 py-1 rounded-full bg-[#5CA4F8] text-[#09152B] text-xs font-extrabold tracking-wide">
+                        ● ACTIVE
                       </span>
-                      {distKm && (
-                        <span className="text-[#16866A] dark:text-[#43C99A] font-semibold">
-                          {distKm} km
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2 text-xs text-[#75847D] dark:text-[#94A8A0] mt-3 pt-3 border-t border-[#E3EAE5] dark:border-[#253831]">
-                    <span className="font-mono tabular-nums">
-                      Duration: {formatDurationSeconds(trip.duration)}
-                    </span>
-                    <span aria-hidden="true">·</span>
-                    <span>Source: {trip.start_location_source}</span>
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
-
-        {/* Right Column: Trip Details Inspector & Endpoint Map (7 cols) */}
-        <div className="lg:col-span-7">
-          {selectedTrip && selectedSummary ? (
-            <div className="rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] p-6 space-y-6">
-              {/* Trip Details Header */}
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-[#E3EAE5] dark:border-[#253831]">
-                <div>
-                  <div className="flex items-center gap-2 text-xs text-[#75847D] dark:text-[#94A8A0]">
-                    <span className="font-bold text-[#16866A] dark:text-[#43C99A]">
-                      {selectedTrip.status}
-                    </span>
-                    <span aria-hidden="true">·</span>
-                    <span className="font-mono">ID: {selectedTrip.id}</span>
-                  </div>
-                  <h2 className="text-xl font-bold text-[#172B25] dark:text-[#EDF6F0] mt-1">
-                    {selectedTrip.start_location_name} →{' '}
-                    {selectedTrip.end_location_name || 'In Progress'}
-                  </h2>
-                  {selectedTrip.notes && (
-                    <p className="text-xs text-[#75847D] dark:text-[#94A8A0] mt-1">
-                      {selectedTrip.notes}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleBeginEdit(selectedTrip)}
-                    className="min-h-[40px] px-3 py-1.5 rounded-xl border border-[#E3EAE5] dark:border-[#253831] text-xs font-semibold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-1.5 hover:border-[#16866A]"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                    Edit
-                  </button>
-                  {selectedTrip.status === TripStatus.ACTIVE && (
-                    <button
-                      type="button"
-                      onClick={() => cancelTrip(selectedTrip.id)}
-                      className="min-h-[40px] px-3 py-1.5 rounded-xl border border-[#E9A23B] text-xs font-semibold text-[#E9A23B]"
-                    >
-                      Cancel Trip
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDeleteId(selectedTrip.id)}
-                    className="min-h-[40px] px-3 py-1.5 rounded-xl border border-[#E3EAE5] dark:border-[#253831] text-xs font-semibold text-[#D9534F] flex items-center gap-1.5 hover:border-[#D9534F]"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Delete
-                  </button>
-                </div>
-              </div>
-
-              {/* Delete Confirmation Notice */}
-              {confirmDeleteId === selectedTrip.id && (
-                <div className="p-4 rounded-xl bg-[#D9534F]/10 border border-[#D9534F] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <p className="text-xs text-[#172B25] dark:text-[#EDF6F0]">
-                    Delete this trip? Associated Telebirr payments will NOT be deleted—they will become{' '}
-                    <span className="font-semibold">Unassigned</span> so your financial totals remain accurate.
-                  </p>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDeleteId(null)}
-                      className="px-3 py-1.5 rounded-lg bg-white dark:bg-[#192722] text-xs font-semibold"
-                    >
-                      Keep Trip
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        deleteTrip(selectedTrip.id);
-                        setConfirmDeleteId(null);
-                      }}
-                      className="px-3 py-1.5 rounded-lg bg-[#D9534F] text-white text-xs font-semibold"
-                    >
-                      Confirm Delete
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Edit Trip Form */}
-              {isEditingTrip && (
-                <form
-                  onSubmit={handleSaveEdit}
-                  className="p-4 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831] space-y-3"
-                >
-                  <p className="text-xs font-bold text-[#172B25] dark:text-[#EDF6F0]">
-                    Edit Trip Locations & Notes
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-medium text-[#75847D] mb-1">
-                        Starting Location
-                      </label>
-                      <input
-                        type="text"
-                        value={editStartName}
-                        onChange={(e) => setEditStartName(e.target.value)}
-                        className="w-full h-10 px-3 rounded-lg bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-medium text-[#75847D] mb-1">
-                        Ending Location
-                      </label>
-                      <input
-                        type="text"
-                        value={editEndName}
-                        onChange={(e) => setEditEndName(e.target.value)}
-                        className="w-full h-10 px-3 rounded-lg bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] text-xs"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-medium text-[#75847D] mb-1">
-                      Notes
-                    </label>
-                    <input
-                      type="text"
-                      value={editNotes}
-                      onChange={(e) => setEditNotes(e.target.value)}
-                      className="w-full h-10 px-3 rounded-lg bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] text-xs"
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingTrip(false)}
-                      className="px-3 py-1.5 rounded-lg text-xs text-[#75847D]"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-1.5 rounded-lg bg-[#16866A] text-white text-xs font-semibold"
-                    >
-                      Save Changes
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {/* Trip Summary KPI Strip */}
-              <div className="grid grid-cols-3 gap-4 py-3 px-4 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17]">
-                <div>
-                  <p className="text-xs text-[#75847D] dark:text-[#94A8A0]">Total Collected</p>
-                  <p className="text-lg font-bold font-mono tabular-nums text-[#16866A] dark:text-[#43C99A] mt-0.5">
-                    {formatMinorUnits(selectedSummary.totalMinorUnits, currency)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-[#75847D] dark:text-[#94A8A0]">Number of Payments</p>
-                  <p className="text-lg font-bold font-mono tabular-nums text-[#172B25] dark:text-[#EDF6F0] mt-0.5">
-                    {selectedSummary.paymentCount}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-[#75847D] dark:text-[#94A8A0]">Trip Duration</p>
-                  <p className="text-lg font-bold font-mono tabular-nums text-[#172B25] dark:text-[#EDF6F0] mt-0.5">
-                    {formatDurationSeconds(selectedTrip.duration)}
-                  </p>
-                </div>
-              </div>
-
-              {/* Interactive Live / Endpoint Map */}
-              <LiveTripMap
-                trip={selectedTrip}
-                associatedTransactions={selectedSummary.transactions}
-                currency={currency}
-                compact
-              />
-
-              {/* Start & End Point Coordinate Plot (Section 7 & 11: Displays Start and End Points without fabricating a route) */}
-              <div className="rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831] p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-[#16866A] dark:text-[#43C99A]" />
-                    Recorded Start & End Endpoints (Addis Ababa Coordinate Grid)
-                  </span>
-                  <span className="text-[11px] text-[#75847D] dark:text-[#94A8A0]">
-                    Point-only capture · No fabricated route
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  <div className="p-3 rounded-lg bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831]">
-                    <p className="text-[11px] font-semibold text-[#16866A] dark:text-[#43C99A]">
-                      START POINT ({selectedTrip.start_location_source})
-                    </p>
-                    <p className="font-semibold text-[#172B25] dark:text-[#EDF6F0] mt-0.5">
-                      {selectedTrip.start_location_name}
-                    </p>
-                    <p className="font-mono text-[11px] text-[#75847D] dark:text-[#94A8A0] mt-1">
-                      Time: {formatIsoToShortTime(selectedTrip.start_time)}
-                      {selectedTrip.start_latitude && selectedTrip.start_longitude
-                        ? ` · ${selectedTrip.start_latitude.toFixed(4)}°N, ${selectedTrip.start_longitude.toFixed(4)}°E (±${selectedTrip.start_location_accuracy || 12}m)`
-                        : ' · Manual Entry'}
-                    </p>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831]">
-                    <p className="text-[11px] font-semibold text-[#123C35] dark:text-[#43C99A]">
-                      END POINT ({selectedTrip.end_location_source || 'PENDING'})
-                    </p>
-                    <p className="font-semibold text-[#172B25] dark:text-[#EDF6F0] mt-0.5">
-                      {selectedTrip.end_location_name || 'Trip currently active'}
-                    </p>
-                    <p className="font-mono text-[11px] text-[#75847D] dark:text-[#94A8A0] mt-1">
-                      {selectedTrip.end_time
-                        ? `Time: ${formatIsoToShortTime(selectedTrip.end_time)}`
-                        : 'Awaiting arrival'}
-                      {selectedTrip.end_latitude && selectedTrip.end_longitude
-                        ? ` · ${selectedTrip.end_latitude.toFixed(4)}°N, ${selectedTrip.end_longitude.toFixed(4)}°E (±${selectedTrip.end_location_accuracy || 14}m)`
-                        : ''}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Associated Transactions List */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-bold text-[#172B25] dark:text-[#EDF6F0]">
-                    Associated Payments ({selectedSummary.transactions.length})
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => onOpenCashModal(selectedTrip.id)}
-                    className="min-h-[36px] px-3 py-1.5 rounded-lg bg-[#DDF5E9] dark:bg-[#1D352D] text-[#123C35] dark:text-[#43C99A] text-xs font-semibold flex items-center gap-1.5"
-                  >
-                    <Banknote className="w-3.5 h-3.5" />
-                    Add Cash to Trip
-                  </button>
-                </div>
-
-                {selectedSummary.transactions.length === 0 ? (
-                  <div className="p-5 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] text-center text-xs text-[#75847D] dark:text-[#94A8A0]">
-                    No payments currently associated with this trip. Attach an unassigned Telebirr
-                    payment below or receive a new 127 SMS.
-                  </div>
-                ) : (
-                  <div className="divide-y divide-[#E3EAE5] dark:divide-[#253831] border-t border-b border-[#E3EAE5] dark:border-[#253831]">
-                    {selectedSummary.transactions.map((tx) => (
-                      <div
-                        key={tx.id}
-                        className="py-3 flex items-center justify-between gap-3"
+                    ) : isCancelled ? (
+                      <span className="px-3 py-1 rounded-full bg-[#3A1D28] text-[#F87171] text-xs font-bold">
+                        Cancelled
+                      </span>
+                    ) : (
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-bold ${
+                          isDark
+                            ? 'bg-[#1B2D54] text-[#5CA4F8]'
+                            : 'bg-[#E8F1FF] text-[#2563EB]'
+                        }`}
                       >
-                        <div>
-                          <div className="flex items-center gap-2 text-sm font-semibold text-[#172B25] dark:text-[#EDF6F0]">
-                            <CheckCircle2 className="w-4 h-4 text-[#22A06B] dark:text-[#43C99A]" />
-                            <span>{tx.sender_name || 'Passenger'}</span>
-                            <span aria-hidden="true" className="text-[#75847D]">
-                              ·
-                            </span>
-                            <span className="font-mono font-bold text-[#16866A] dark:text-[#43C99A]">
-                              {formatMinorUnits(tx.amount_minor_units, currency)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-[#75847D] dark:text-[#94A8A0] font-mono mt-0.5">
-                            <span>{tx.transaction_id || tx.payment_method}</span>
-                            {tx.sender_phone && (
-                              <>
-                                <span aria-hidden="true">·</span>
-                                <span>{tx.sender_phone}</span>
-                              </>
-                            )}
-                            <span aria-hidden="true">·</span>
-                            <span>{tx.transaction_time}</span>
-                          </div>
-                        </div>
+                        Completed
+                      </span>
+                    )}
 
+                    <span className="text-xs font-medium text-[#8E9BAE]">
+                      {isActive
+                        ? `Started ${formatTripClockTime(trip.start_time)}`
+                        : `Today · ${formatTripClockTime(trip.start_time)}`}
+                    </span>
+                  </div>
+
+                  <h3
+                    className={`text-xl font-extrabold tracking-tight mt-3 ${
+                      isCancelled
+                        ? isDark
+                          ? 'text-[#CBD5E1]'
+                          : 'text-slate-600'
+                        : isDark
+                        ? 'text-white'
+                        : 'text-[#0F172A]'
+                    }`}
+                  >
+                    {startShort} → {endShort}
+                  </h3>
+
+                  <div className="mt-2.5 flex items-baseline justify-between gap-2">
+                    <span className="text-sm font-medium text-[#8E9BAE]">
+                      {durationDisplay} · {summary.paymentCount}{' '}
+                      {summary.paymentCount === 1 ? 'payment' : 'payments'}
+                      {distKm ? ` · ${distKm} km` : ''}
+                    </span>
+
+                    <span
+                      className={`text-xl font-extrabold tabular-nums ${
+                        isActive
+                          ? 'text-[#5CA4F8]'
+                          : isDark
+                          ? 'text-white'
+                          : 'text-[#0F172A]'
+                      }`}
+                    >
+                      {currency} {amountMajorWhole}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Expanded Trip Map & Payment Details Inspector */}
+                {isExpanded && (
+                  <div
+                    className={`px-5 pb-5 pt-3 border-t space-y-4 ${
+                      isDark ? 'border-white/10' : 'border-slate-100'
+                    }`}
+                  >
+                    {/* Action Controls */}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        {isActive && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenTripModal('END')}
+                            className="px-3.5 py-1.5 rounded-xl bg-[#2CD48D] text-[#052115] text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <StopCircle className="w-3.5 h-3.5" />
+                            Complete Trip
+                          </button>
+                        )}
                         <button
                           type="button"
-                          onClick={() => assignTransactionToTrip(tx.id, null)}
-                          className="min-h-[38px] px-3 py-1.5 rounded-lg border border-[#E3EAE5] dark:border-[#253831] text-xs font-medium text-[#75847D] hover:text-[#D9534F] hover:border-[#D9534F] flex items-center gap-1 transition-colors"
-                          title="Remove payment from this trip (marks payment as Unassigned)"
+                          onClick={() => onOpenCashModal(trip.id)}
+                          className="px-3 py-1.5 rounded-xl bg-[#F5BA36]/15 text-[#F5BA36] text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                         >
-                          <Unlink className="w-3.5 h-3.5" />
-                          Detach
+                          <Banknote className="w-3.5 h-3.5" />
+                          +Cash Fare
                         </button>
                       </div>
-                    ))}
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleBeginEdit(trip)}
+                          className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer ${
+                            isDark
+                              ? 'bg-white/5 text-white hover:bg-white/10'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          Edit
+                        </button>
+                        {isActive && (
+                          <button
+                            type="button"
+                            onClick={() => cancelTrip(trip.id)}
+                            className="px-2.5 py-1.5 rounded-xl bg-[#F5BA36]/15 text-[#F5BA36] text-xs font-semibold cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteId(trip.id)}
+                          className="px-2.5 py-1.5 rounded-xl bg-[#F87171]/15 text-[#F87171] text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Delete Confirmation */}
+                    {confirmDeleteId === trip.id && (
+                      <div className="p-3.5 rounded-xl bg-[#F87171]/15 border border-[#F87171]/40 space-y-2">
+                        <p className="text-xs text-white">
+                          Delete this trip? Linked Telebirr payments will be preserved as Unassigned.
+                        </p>
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="px-3 py-1 rounded-lg bg-white/10 text-xs font-semibold text-white"
+                          >
+                            Keep
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              deleteTrip(trip.id);
+                              setConfirmDeleteId(null);
+                              setExpandedTripId(null);
+                            }}
+                            className="px-3 py-1 rounded-lg bg-[#F87171] text-xs font-bold text-[#09152B]"
+                          >
+                            Confirm Delete
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Edit Form */}
+                    {isEditingTrip && (
+                      <form
+                        onSubmit={(e) => handleSaveEdit(e, trip)}
+                        className={`p-3.5 rounded-xl space-y-2.5 ${
+                          isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'
+                        }`}
+                      >
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-[#8E9BAE] mb-1">
+                              Start Location
+                            </label>
+                            <input
+                              type="text"
+                              value={editStartName}
+                              onChange={(e) => setEditStartName(e.target.value)}
+                              className={`w-full h-9 px-2.5 rounded-lg text-xs border ${
+                                isDark
+                                  ? 'bg-[#141B2D] border-white/10 text-white'
+                                  : 'bg-white border-slate-200 text-slate-900'
+                              }`}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-[#8E9BAE] mb-1">
+                              Destination
+                            </label>
+                            <input
+                              type="text"
+                              value={editEndName}
+                              onChange={(e) => setEditEndName(e.target.value)}
+                              className={`w-full h-9 px-2.5 rounded-lg text-xs border ${
+                                isDark
+                                  ? 'bg-[#141B2D] border-white/10 text-white'
+                                  : 'bg-white border-slate-200 text-slate-900'
+                              }`}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingTrip(false)}
+                            className="px-3 py-1 text-xs text-[#8E9BAE]"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-3 py-1 rounded-lg bg-[#2CD48D] text-[#052115] text-xs font-bold"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </form>
+                    )}
+
+                    {/* react-native-maps Start & End Coordinate Visualization */}
+                    <LiveTripMap
+                      trip={trip}
+                      associatedTransactions={summary.transactions}
+                      currency={currency}
+                      compact
+                    />
+
+                    {/* Recorded GPS Endpoints */}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div
+                        className={`p-2.5 rounded-xl ${
+                          isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'
+                        }`}
+                      >
+                        <p className="text-[10px] font-bold text-[#2CD48D] flex items-center gap-1">
+                          <MapPin className="w-3 h-3" />
+                          START ({trip.start_location_source})
+                        </p>
+                        <p
+                          className={`font-semibold truncate mt-0.5 ${
+                            isDark ? 'text-white' : 'text-slate-900'
+                          }`}
+                        >
+                          {trip.start_location_name}
+                        </p>
+                        <p className="font-mono text-[10px] text-[#8E9BAE] mt-0.5">
+                          {trip.start_latitude && trip.start_longitude
+                            ? `${trip.start_latitude.toFixed(4)}°N, ${trip.start_longitude.toFixed(4)}°E`
+                            : 'Manual'}
+                        </p>
+                      </div>
+
+                      <div
+                        className={`p-2.5 rounded-xl ${
+                          isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'
+                        }`}
+                      >
+                        <p className="text-[10px] font-bold text-[#5CA4F8] flex items-center gap-1">
+                          <MapPin className="w-3 h-3" />
+                          END ({trip.end_location_source || 'PENDING'})
+                        </p>
+                        <p
+                          className={`font-semibold truncate mt-0.5 ${
+                            isDark ? 'text-white' : 'text-slate-900'
+                          }`}
+                        >
+                          {trip.end_location_name || 'In progress'}
+                        </p>
+                        <p className="font-mono text-[10px] text-[#8E9BAE] mt-0.5">
+                          {trip.end_latitude && trip.end_longitude
+                            ? `${trip.end_latitude.toFixed(4)}°N, ${trip.end_longitude.toFixed(4)}°E`
+                            : 'Awaiting arrival'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Linked Payments */}
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold text-[#8E9BAE]">
+                        Linked Payments ({summary.transactions.length})
+                      </p>
+                      {summary.transactions.map((tx) => (
+                        <div
+                          key={tx.id}
+                          className={`p-2.5 rounded-xl flex items-center justify-between gap-2 text-xs ${
+                            isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'
+                          }`}
+                        >
+                          <div>
+                            <p
+                              className={`font-bold flex items-center gap-1.5 ${
+                                isDark ? 'text-white' : 'text-slate-900'
+                              }`}
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 text-[#2CD48D]" />
+                              {tx.sender_name} ·{' '}
+                              <span className="text-[#2CD48D] font-mono">
+                                {formatMinorUnits(tx.amount_minor_units, currency)}
+                              </span>
+                            </p>
+                            <p className="text-[10px] text-[#8E9BAE] font-mono mt-0.5">
+                              {tx.transaction_id || 'CASH'} · {tx.transaction_time.slice(0, 5)}
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => assignTransactionToTrip(tx.id, null)}
+                            className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-[#F87171]/20 text-[#8E9BAE] hover:text-[#F87171] text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Unlink className="w-3 h-3" />
+                            Detach
+                          </button>
+                        </div>
+                      ))}
+
+                      {unassignedPayments.length > 0 && (
+                        <div className="pt-1 space-y-1.5">
+                          <p className="text-[11px] font-bold text-[#F5BA36] flex items-center gap-1">
+                            <Link2 className="w-3 h-3" />
+                            Attach Unassigned Payment ({unassignedPayments.length})
+                          </p>
+                          {unassignedPayments.map((utx) => (
+                            <div
+                              key={utx.id}
+                              className={`p-2 rounded-xl flex items-center justify-between text-xs ${
+                                isDark ? 'bg-[#272118]' : 'bg-[#FEF7E6]'
+                              }`}
+                            >
+                              <span
+                                className={`font-semibold ${
+                                  isDark ? 'text-white' : 'text-slate-900'
+                                }`}
+                              >
+                                {utx.sender_name} ·{' '}
+                                {formatMinorUnits(utx.amount_minor_units, currency)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => assignTransactionToTrip(utx.id, trip.id)}
+                                className="px-2.5 py-1 rounded-lg bg-[#2CD48D] text-[#052115] text-[11px] font-extrabold flex items-center gap-1 cursor-pointer"
+                              >
+                                <Plus className="w-3 h-3" />
+                                Attach
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
-
-              {/* Attach Unassigned Payments Section */}
-              {unassignedPayments.length > 0 && (
-                <div className="pt-2">
-                  <h4 className="text-xs font-bold text-[#75847D] dark:text-[#94A8A0] mb-2 flex items-center gap-1.5">
-                    <Link2 className="w-3.5 h-3.5" />
-                    Available Unassigned Payments ({unassignedPayments.length})
-                  </h4>
-                  <div className="space-y-2">
-                    {unassignedPayments.map((utx) => (
-                      <div
-                        key={utx.id}
-                        className="p-3 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] flex items-center justify-between gap-3"
-                      >
-                        <div className="text-xs">
-                          <span className="font-mono font-bold text-[#172B25] dark:text-[#EDF6F0]">
-                            {formatMinorUnits(utx.amount_minor_units, currency)}
-                          </span>
-                          <span className="mx-1.5 text-[#75847D]">·</span>
-                          <span className="font-medium text-[#172B25] dark:text-[#EDF6F0]">
-                            {utx.sender_name}
-                          </span>
-                          <span className="mx-1.5 text-[#75847D]">·</span>
-                          <span className="font-mono text-[#75847D]">
-                            {utx.transaction_id || 'CASH'} ({utx.transaction_time.slice(0, 5)})
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => assignTransactionToTrip(utx.id, selectedTrip.id)}
-                          className="min-h-[36px] px-3 py-1 rounded-lg bg-[#16866A] text-white text-xs font-semibold flex items-center gap-1 whitespace-nowrap shrink-0"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          Attach to Trip
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : null}
-        </div>
+            );
+          })
+        )}
       </div>
     </div>
   );

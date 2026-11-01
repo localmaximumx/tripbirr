@@ -1,489 +1,425 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowDownLeft,
-  ArrowUpRight,
+  ArrowDown,
   Banknote,
-  Link2,
   MessageSquarePlus,
-  RotateCcw,
   Search,
   Trash2,
 } from 'lucide-react';
 import { useTripBirrStore } from '../../store/useTripBirrStore';
 import {
   PaymentMethod,
-  TransactionRecord,
   TransactionStatus,
   TripStatus,
 } from '../../database/schema';
-import {
-  isOutgoingTransaction,
-  isPositiveIncomingTransaction,
-  isReversalOrRefundTransaction,
-} from '../../services/reports/reportService';
-import { formatMinorUnits } from '../../utils/formatters';
-
-type TxFilterTab =
-  | 'ALL'
-  | 'INCOMING'
-  | 'UNASSIGNED'
-  | 'ASSIGNED'
-  | 'OUTGOING'
-  | 'REVERSALS'
-  | 'SMS_AUDIT';
+import { CURRENT_DEMO_ISO_DATE } from '../../database/database';
+import { isPositiveIncomingTransaction } from '../../services/reports/reportService';
 
 interface TransactionsScreenProps {
   onOpenSmsSimulator: () => void;
   onOpenCashModal: () => void;
+  initialFilterHint?: string | null;
+}
+
+type PaymentFilter = 'ALL' | 'TELEBIRR' | 'CASH' | 'UNASSIGNED';
+
+function formatTime12Hour(time24: string): string {
+  const parts = time24.split(':');
+  if (parts.length < 2) return time24;
+  const h = parseInt(parts[0], 10);
+  const m = parts[1];
+  if (isNaN(h)) return time24;
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${m} ${suffix}`;
 }
 
 export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
   onOpenSmsSimulator,
   onOpenCashModal,
+  initialFilterHint,
 }) => {
   const {
-    transactions,
     trips,
-    smsProcessingRecords,
+    transactions,
     settings,
     assignTransactionToTrip,
     deleteTransactionRecord,
   } = useTripBirrStore();
 
-  const currency = settings.currency_display;
-  const [activeFilter, setActiveFilter] = useState<TxFilterTab>('ALL');
+  const isDark = settings.theme === 'dark';
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
-  const [selectedTxId, setSelectedTxId] = useState<string>(
-    transactions[0]?.id || ''
+  const [activeFilter, setActiveFilter] = useState<PaymentFilter>('ALL');
+  const [assigningTxId, setAssigningTxId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialFilterHint === 'UNASSIGNED') {
+      setActiveFilter('UNASSIGNED');
+    }
+  }, [initialFilterHint]);
+
+  const todayPayments = useMemo(() => {
+    return transactions.filter(
+      (tx) =>
+        tx.iso_date === CURRENT_DEMO_ISO_DATE &&
+        isPositiveIncomingTransaction(tx) &&
+        tx.transaction_status === TransactionStatus.VALID
+    );
+  }, [transactions]);
+
+  const unassignedCount = useMemo(
+    () => todayPayments.filter((tx) => tx.trip_id === null).length,
+    [todayPayments]
   );
 
-  const filteredTransactions = transactions.filter((tx) => {
-    if (activeFilter === 'INCOMING' && !isPositiveIncomingTransaction(tx)) {
-      return false;
-    }
-    if (
-      activeFilter === 'UNASSIGNED' &&
-      (!isPositiveIncomingTransaction(tx) || tx.trip_id !== null)
-    ) {
-      return false;
-    }
-    if (
-      activeFilter === 'ASSIGNED' &&
-      (!isPositiveIncomingTransaction(tx) || tx.trip_id === null)
-    ) {
-      return false;
-    }
-    if (activeFilter === 'OUTGOING' && !isOutgoingTransaction(tx)) {
-      return false;
-    }
-    if (activeFilter === 'REVERSALS' && !isReversalOrRefundTransaction(tx)) {
-      return false;
-    }
+  const filteredPayments = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return todayPayments.filter((tx) => {
+      if (activeFilter === 'TELEBIRR' && tx.payment_method !== PaymentMethod.TELEBIRR) {
+        return false;
+      }
+      if (activeFilter === 'CASH' && tx.payment_method !== PaymentMethod.CASH) {
+        return false;
+      }
+      if (activeFilter === 'UNASSIGNED' && tx.trip_id !== null) {
+        return false;
+      }
+      if (!q) return true;
+      const amountStr = (tx.amount_minor_units / 100).toFixed(2);
+      return (
+        (tx.sender_name || '').toLowerCase().includes(q) ||
+        (tx.transaction_id || '').toLowerCase().includes(q) ||
+        (tx.description || '').toLowerCase().includes(q) ||
+        amountStr.includes(q)
+      );
+    });
+  }, [todayPayments, activeFilter, searchQuery]);
 
-    if (dateFilter && tx.iso_date !== dateFilter) {
-      return false;
-    }
+  const assignableTrips = useMemo(
+    () =>
+      trips.filter(
+        (t) =>
+          t.start_time.slice(0, 10) === CURRENT_DEMO_ISO_DATE &&
+          t.status !== TripStatus.CANCELLED
+      ),
+    [trips]
+  );
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchSender = (tx.sender_name || '').toLowerCase().includes(q);
-      const matchTxId = (tx.transaction_id || '').toLowerCase().includes(q);
-      const matchPhone = (tx.sender_phone || '').toLowerCase().includes(q);
-      const matchAmt = (tx.amount_minor_units / 100).toFixed(2).includes(q);
-      return matchSender || matchTxId || matchPhone || matchAmt;
-    }
-
-    return true;
-  });
-
-  const selectedTx: TransactionRecord | null =
-    filteredTransactions.find((tx) => tx.id === selectedTxId) ||
-    filteredTransactions[0] ||
-    null;
+  const getTripPillLabel = (tripId: string | null): string | null => {
+    if (!tripId) return null;
+    const tr = trips.find((t) => t.id === tripId);
+    if (!tr) return null;
+    const startShort = tr.start_location_name.replace(', Addis Ababa', '');
+    const endShort = tr.end_location_name
+      ? tr.end_location_name.replace(', Addis Ababa', '')
+      : 'In progress';
+    return `${startShort} → ${endShort}`;
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-[#172B25] dark:text-[#EDF6F0]">
-            Transaction Ledger & SMS Audit
-          </h1>
-          <p className="text-xs text-[#75847D] dark:text-[#94A8A0] mt-0.5">
-            Every Telebirr 127 notification and manual cash record stored in integer minor units
-          </p>
-        </div>
+    <div className="space-y-4">
+      {/* Page Title & Quick Action Buttons (Matches Page 3) */}
+      <div className="flex items-center justify-between pt-1">
+        <h1
+          className={`text-[32px] font-extrabold tracking-tight ${
+            isDark ? 'text-white' : 'text-[#0F172A]'
+          }`}
+        >
+          Payments
+        </h1>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onOpenCashModal}
-            className="min-h-[42px] px-4 py-2 rounded-xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] text-xs font-semibold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-2 hover:border-[#16866A]"
+            className={`h-9 px-3 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+              isDark
+                ? 'bg-[#141B2D] text-[#F5BA36] border border-white/5'
+                : 'bg-white text-[#B45309] border border-slate-200/80 shadow-xs'
+            }`}
           >
-            <Banknote className="w-4 h-4 text-[#16866A] dark:text-[#43C99A]" />
-            Record Cash
+            <Banknote className="w-3.5 h-3.5" />
+            +Cash
           </button>
           <button
             type="button"
             onClick={onOpenSmsSimulator}
-            className="min-h-[42px] px-4 py-2 rounded-xl bg-[#16866A] dark:bg-[#43C99A] text-white dark:text-[#101A17] text-xs font-bold flex items-center gap-2"
+            className={`h-9 px-3 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer ${
+              isDark
+                ? 'bg-[#141B2D] text-[#5CA4F8] border border-white/5'
+                : 'bg-white text-[#2563EB] border border-slate-200/80 shadow-xs'
+            }`}
           >
-            <MessageSquarePlus className="w-4 h-4" />
-            Test 127 SMS
+            <MessageSquarePlus className="w-3.5 h-3.5" />
+            127 SMS
           </button>
         </div>
       </div>
 
-      {/* Search & Filter Controls */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1 p-1 bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] rounded-xl">
-          {(
-            [
-              { id: 'ALL', label: 'All' },
-              { id: 'INCOMING', label: 'Incoming' },
-              { id: 'UNASSIGNED', label: 'Unassigned' },
-              { id: 'ASSIGNED', label: 'Assigned' },
-              { id: 'OUTGOING', label: 'Outgoing' },
-              { id: 'REVERSALS', label: 'Refunds & Reversals' },
-              { id: 'SMS_AUDIT', label: `SMS Processing Log (${smsProcessingRecords.length})` },
-            ] as const
-          ).map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveFilter(tab.id)}
-              className={`min-h-[36px] px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 ${
-                activeFilter === tab.id
-                  ? 'bg-[#123C35] text-white dark:bg-[#43C99A] dark:text-[#101A17]'
-                  : 'text-[#75847D] dark:text-[#94A8A0] hover:text-[#172B25] dark:hover:text-[#EDF6F0]'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 sm:w-64">
-            <Search className="w-4 h-4 text-[#75847D] absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search sender, TX ID, amount..."
-              className="w-full h-10 pl-9 pr-3 rounded-xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] text-xs text-[#172B25] dark:text-[#EDF6F0] focus:outline-none focus:border-[#16866A]"
-            />
-          </div>
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="h-10 px-3 rounded-xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] text-xs font-mono text-[#172B25] dark:text-[#EDF6F0]"
-            aria-label="Filter by date"
-          />
-          {dateFilter && (
-            <button
-              type="button"
-              onClick={() => setDateFilter('')}
-              className="text-xs font-semibold text-[#16866A] dark:text-[#43C99A] underline px-1"
-            >
-              Clear
-            </button>
-          )}
-        </div>
+      {/* Search Bar (Matches Page 3: "Name, amount or transaction ID") */}
+      <div
+        className={`h-12 px-4 rounded-2xl flex items-center gap-3 ${
+          isDark
+            ? 'bg-[#141B2D] text-white'
+            : 'bg-white border border-slate-200/80 text-[#0F172A] shadow-xs'
+        }`}
+      >
+        <Search className="w-5 h-5 text-[#8E9BAE] shrink-0" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Name, amount or transaction ID"
+          className="w-full bg-transparent text-sm focus:outline-none placeholder:text-[#8E9BAE]"
+        />
       </div>
 
-      {/* SMS Audit Log View vs Financial Transactions View */}
-      {activeFilter === 'SMS_AUDIT' ? (
-        <div className="rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] overflow-hidden">
-          <div className="p-5 border-b border-[#E3EAE5] dark:border-[#253831]">
-            <h2 className="text-sm font-bold text-[#172B25] dark:text-[#EDF6F0]">
-              SMS Processing & Classification Records (sms_processing_records table)
-            </h2>
-            <p className="text-xs text-[#75847D] dark:text-[#94A8A0] mt-0.5">
-              Tracks processed fingerprints, ignored promotional broadcasts, and unknown formats
-              flagged for review without storing raw personal SMS bodies.
-            </p>
-          </div>
-          <div className="divide-y divide-[#E3EAE5] dark:divide-[#253831]">
-            {smsProcessingRecords.map((rec) => (
-              <div
-                key={rec.id}
-                className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
-              >
-                <div>
-                  <div className="flex items-center gap-2 font-semibold text-[#172B25] dark:text-[#EDF6F0]">
-                    <span className="font-mono text-[#16866A] dark:text-[#43C99A]">
-                      {rec.classification}
-                    </span>
-                    <span aria-hidden="true">·</span>
-                    <span>{rec.summary_note}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-[#75847D] dark:text-[#94A8A0] font-mono mt-1">
-                    <span>Sender: {rec.sender_id}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>Fingerprint: {rec.message_fingerprint}</span>
-                  </div>
-                  {rec.error_message && (
-                    <p className="text-[#D9534F] mt-1">{rec.error_message}</p>
-                  )}
-                </div>
-                <span className="font-mono font-semibold text-[#75847D] dark:text-[#94A8A0] shrink-0">
-                  {rec.processing_status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Transaction List (7 cols) */}
-          <div className="lg:col-span-7 rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] divide-y divide-[#E3EAE5] dark:divide-[#253831]">
-            {filteredTransactions.length === 0 ? (
-              <div className="p-10 text-center">
-                <p className="text-sm font-semibold text-[#172B25] dark:text-[#EDF6F0]">
-                  No transactions match your current filter
-                </p>
-                <p className="text-xs text-[#75847D] dark:text-[#94A8A0] mt-1">
-                  Try clearing search terms or simulate an incoming Telebirr 127 SMS.
-                </p>
-              </div>
-            ) : (
-              filteredTransactions.map((tx) => {
-                const isIncoming = isPositiveIncomingTransaction(tx);
-                const isOutgoing = isOutgoingTransaction(tx);
-                const isSelected = selectedTx?.id === tx.id;
-                const trip = tx.trip_id
-                  ? trips.find((t) => t.id === tx.trip_id)
-                  : null;
+      {/* Filter Pills Row (All, Telebirr, Cash, Unassigned 2) */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+        <button
+          type="button"
+          onClick={() => setActiveFilter('ALL')}
+          className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+            activeFilter === 'ALL'
+              ? 'bg-[#2CD48D] text-[#052115]'
+              : isDark
+              ? 'bg-[#141B2D] text-white'
+              : 'bg-white text-[#0F172A] border border-slate-200/80'
+          }`}
+        >
+          All
+        </button>
 
-                return (
-                  <button
-                    key={tx.id}
-                    type="button"
-                    onClick={() => setSelectedTxId(tx.id)}
-                    className={`w-full text-left p-4 flex items-center justify-between gap-4 transition-colors ${
-                      isSelected
-                        ? 'bg-[#DDF5E9]/40 dark:bg-[#1D352D]/50'
-                        : 'hover:bg-[#F5F7F5]/60 dark:hover:bg-[#101A17]/50'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
-                          isIncoming
-                            ? 'bg-[#DDF5E9] dark:bg-[#1D352D] text-[#16866A] dark:text-[#43C99A]'
-                            : isOutgoing
-                            ? 'bg-[#F5F7F5] dark:bg-[#101A17] text-[#75847D]'
-                            : 'bg-[#E9A23B]/15 text-[#E9A23B]'
+        <button
+          type="button"
+          onClick={() => setActiveFilter('TELEBIRR')}
+          className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+            activeFilter === 'TELEBIRR'
+              ? 'bg-[#2CD48D] text-[#052115]'
+              : isDark
+              ? 'bg-[#141B2D] text-white'
+              : 'bg-white text-[#0F172A] border border-slate-200/80'
+          }`}
+        >
+          Telebirr
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveFilter('CASH')}
+          className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+            activeFilter === 'CASH'
+              ? 'bg-[#2CD48D] text-[#052115]'
+              : isDark
+              ? 'bg-[#141B2D] text-white'
+              : 'bg-white text-[#0F172A] border border-slate-200/80'
+          }`}
+        >
+          Cash
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveFilter('UNASSIGNED')}
+          className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+            activeFilter === 'UNASSIGNED'
+              ? 'bg-[#F5BA36] text-[#111827]'
+              : isDark
+              ? 'bg-[#332614] text-[#F5BA36]'
+              : 'bg-[#FEF7E6] text-[#B45309] border border-[#F3D078]'
+          }`}
+        >
+          Unassigned {unassignedCount}
+        </button>
+      </div>
+
+      {/* Section Date Header (Matches Page 3: "TODAY") */}
+      <p className="text-xs font-bold tracking-wider text-[#8E9BAE] uppercase pt-1">
+        TODAY
+      </p>
+
+      {/* Payments Container Card (Matches Page 3) */}
+      <div
+        className={`rounded-[26px] p-4 sm:p-5 space-y-5 ${
+          isDark
+            ? 'bg-[#141B2D]'
+            : 'bg-white border border-slate-200/80 shadow-xs'
+        }`}
+      >
+        {filteredPayments.length === 0 ? (
+          <div className="py-8 text-center text-sm text-[#8E9BAE]">
+            No payments match your search or filter.
+          </div>
+        ) : (
+          filteredPayments.map((tx) => {
+            const isCash = tx.payment_method === PaymentMethod.CASH;
+            const amountMajor = (tx.amount_minor_units / 100).toFixed(2);
+            const time12 = formatTime12Hour(tx.transaction_time);
+            const tripPill = getTripPillLabel(tx.trip_id);
+            const isAssigning = assigningTxId === tx.id;
+
+            const subLine = isCash
+              ? `${tx.description || 'Note: Cash fare'} · ${time12}`
+              : `${tx.transaction_id || 'TELEBIRR'} · ${time12}`;
+
+            return (
+              <div key={tx.id} className="space-y-2.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3.5 min-w-0">
+                    <div
+                      className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                        isCash
+                          ? isDark
+                            ? 'bg-[#1D2436] text-[#F5BA36]'
+                            : 'bg-[#F3F4F6] text-[#B45309]'
+                          : isDark
+                          ? 'bg-[#16274C] text-[#5CA4F8]'
+                          : 'bg-[#E8F1FF] text-[#2563EB]'
+                      }`}
+                    >
+                      <ArrowDown className="w-5 h-5 stroke-[2.4]" />
+                    </div>
+
+                    <div className="min-w-0">
+                      <p
+                        className={`text-base font-bold truncate ${
+                          isDark ? 'text-white' : 'text-[#0F172A]'
                         }`}
                       >
-                        {isIncoming ? (
-                          <ArrowDownLeft className="w-4 h-4" />
-                        ) : isOutgoing ? (
-                          <ArrowUpRight className="w-4 h-4" />
+                        {isCash ? 'Cash payment' : tx.sender_name}
+                      </p>
+                      <p className="text-xs text-[#8E9BAE] truncate mt-0.5">
+                        {subLine}
+                      </p>
+
+                      {/* Trip Route Pill OR "Needs trip" Badge (Matches Page 3 verbatim) */}
+                      <div className="mt-2">
+                        {tripPill ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setAssigningTxId(isAssigning ? null : tx.id)
+                            }
+                            className={`px-3 py-1 rounded-full text-xs font-bold transition-opacity hover:opacity-90 cursor-pointer ${
+                              isDark
+                                ? 'bg-[#1B2D54] text-[#5CA4F8]'
+                                : 'bg-[#E8F1FF] text-[#2563EB]'
+                            }`}
+                            title="Tap to change trip assignment"
+                          >
+                            {tripPill}
+                          </button>
                         ) : (
-                          <RotateCcw className="w-4 h-4" />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setAssigningTxId(isAssigning ? null : tx.id)
+                            }
+                            className={`px-3 py-1 rounded-full text-xs font-bold transition-opacity hover:opacity-90 cursor-pointer ${
+                              isDark
+                                ? 'bg-[#332614] text-[#F5BA36]'
+                                : 'bg-[#FEF7E6] text-[#B45309]'
+                            }`}
+                            title="Tap to assign this payment to a trip"
+                          >
+                            Needs trip
+                          </button>
                         )}
                       </div>
+                    </div>
+                  </div>
 
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-bold text-[#172B25] dark:text-[#EDF6F0] truncate">
-                            {tx.sender_name || 'Unknown'}
-                          </p>
-                          {tx.transaction_status !== TransactionStatus.VALID && (
-                            <span className="text-xs font-mono font-semibold text-[#D9534F]">
-                              · {tx.transaction_status}
-                            </span>
-                          )}
-                        </div>
+                  <span
+                    className={`text-lg font-extrabold tabular-nums shrink-0 mt-0.5 ${
+                      isDark ? 'text-white' : 'text-[#0F172A]'
+                    }`}
+                  >
+                    +{amountMajor}
+                  </span>
+                </div>
 
-                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-[#75847D] dark:text-[#94A8A0] mt-0.5">
-                          <span className="font-mono">
-                            {tx.transaction_id || tx.payment_method}
-                          </span>
-                          <span aria-hidden="true">·</span>
-                          <span className="font-mono tabular-nums">
-                            {tx.transaction_date} {tx.transaction_time.slice(0, 5)}
-                          </span>
-                          <span aria-hidden="true">·</span>
-                          <span className="truncate">
-                            {trip
-                              ? `${trip.start_location_name.replace(', Addis Ababa', '')} → ${(trip.end_location_name || 'Active').replace(', Addis Ababa', '')}`
-                              : isIncoming
-                              ? 'Unassigned'
-                              : tx.transaction_type}
-                          </span>
-                        </div>
-                      </div>
+                {/* Inline Trip Assignment Selector when pill is tapped */}
+                {isAssigning && (
+                  <div
+                    className={`ml-14 p-3 rounded-2xl border space-y-2 ${
+                      isDark
+                        ? 'bg-[#0B0F1A] border-white/10'
+                        : 'bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-[#8E9BAE]">
+                        Assign to Trip:
+                      </span>
+                      {isCash && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            deleteTransactionRecord(tx.id);
+                            setAssigningTxId(null);
+                          }}
+                          className="text-[11px] font-semibold text-[#F87171] flex items-center gap-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Delete Cash Entry
+                        </button>
+                      )}
                     </div>
 
-                    <div className="text-right shrink-0">
-                      <p
-                        className={`text-sm font-bold font-mono tabular-nums ${
-                          isIncoming && tx.transaction_status === TransactionStatus.VALID
-                            ? 'text-[#22A06B] dark:text-[#43C99A]'
-                            : isOutgoing
-                            ? 'text-[#75847D]'
-                            : 'text-[#D9534F]'
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          assignTransactionToTrip(tx.id, null);
+                          setAssigningTxId(null);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${
+                          tx.trip_id === null
+                            ? 'bg-[#F5BA36] text-[#111827] font-bold'
+                            : 'bg-white/10 text-[#8E9BAE]'
                         }`}
                       >
-                        {isIncoming ? '+' : '-'}
-                        {formatMinorUnits(tx.amount_minor_units, currency)}
-                      </p>
-                      <p className="text-[11px] font-mono text-[#75847D] dark:text-[#94A8A0]">
-                        {tx.amount_minor_units} cents
-                      </p>
+                        Unassigned
+                      </button>
+
+                      {assignableTrips.map((tr) => {
+                        const label = `${tr.start_location_name.replace(
+                          ', Addis Ababa',
+                          ''
+                        )} → ${(tr.end_location_name || 'In progress').replace(
+                          ', Addis Ababa',
+                          ''
+                        )}`;
+                        const isCurrent = tx.trip_id === tr.id;
+                        return (
+                          <button
+                            key={tr.id}
+                            type="button"
+                            onClick={() => {
+                              assignTransactionToTrip(tx.id, tr.id);
+                              setAssigningTxId(null);
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${
+                              isCurrent
+                                ? 'bg-[#2CD48D] text-[#052115] font-bold'
+                                : isDark
+                                ? 'bg-[#141B2D] text-white hover:bg-[#1E2B45]'
+                                : 'bg-white text-slate-800 border border-slate-200'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
                     </div>
-                  </button>
-                );
-              })
-            )}
-          </div>
-
-          {/* Transaction Details Inspector (5 cols, Section 10) */}
-          <div className="lg:col-span-5">
-            {selectedTx ? (
-              <div className="rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] p-6 space-y-5">
-                <div className="flex items-start justify-between pb-4 border-b border-[#E3EAE5] dark:border-[#253831]">
-                  <div>
-                    <p className="text-xs font-mono text-[#16866A] dark:text-[#43C99A]">
-                      {selectedTx.transaction_type}
-                    </p>
-                    <h2 className="text-2xl font-bold font-mono tabular-nums text-[#172B25] dark:text-[#EDF6F0] mt-1">
-                      {formatMinorUnits(selectedTx.amount_minor_units, currency)}
-                    </h2>
-                    <p className="text-xs text-[#75847D] dark:text-[#94A8A0] mt-0.5 font-mono">
-                      Stored as {selectedTx.amount_minor_units} integer minor units
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => deleteTransactionRecord(selectedTx.id)}
-                    className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border border-[#E3EAE5] dark:border-[#253831] text-[#75847D] hover:text-[#D9534F] hover:border-[#D9534F]"
-                    title="Delete transaction record"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="space-y-2.5 text-xs">
-                  <div className="flex justify-between py-1.5 border-b border-[#E3EAE5] dark:border-[#253831]">
-                    <span className="text-[#75847D] dark:text-[#94A8A0]">Sender / Counterparty</span>
-                    <span className="font-semibold text-[#172B25] dark:text-[#EDF6F0]">
-                      {selectedTx.sender_name || '—'}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between py-1.5 border-b border-[#E3EAE5] dark:border-[#253831]">
-                    <span className="text-[#75847D] dark:text-[#94A8A0]">Sender Phone Number</span>
-                    <span className="font-mono text-[#172B25] dark:text-[#EDF6F0]">
-                      {selectedTx.sender_phone || 'Not provided'}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between py-1.5 border-b border-[#E3EAE5] dark:border-[#253831]">
-                    <span className="text-[#75847D] dark:text-[#94A8A0]">Recipient</span>
-                    <span className="font-semibold text-[#172B25] dark:text-[#EDF6F0]">
-                      {selectedTx.recipient_name || '—'}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between py-1.5 border-b border-[#E3EAE5] dark:border-[#253831]">
-                    <span className="text-[#75847D] dark:text-[#94A8A0]">Transaction ID</span>
-                    <span className="font-mono font-bold text-[#172B25] dark:text-[#EDF6F0]">
-                      {selectedTx.transaction_id || 'Manual / No TX ID'}
-                    </span>
-                  </div>
-
-                  {selectedTx.original_transaction_id && (
-                    <div className="flex justify-between py-1.5 border-b border-[#E3EAE5] dark:border-[#253831]">
-                      <span className="text-[#75847D] dark:text-[#94A8A0]">
-                        Original Reversed TX ID
-                      </span>
-                      <span className="font-mono font-semibold text-[#E9A23B]">
-                        {selectedTx.original_transaction_id}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between py-1.5 border-b border-[#E3EAE5] dark:border-[#253831]">
-                    <span className="text-[#75847D] dark:text-[#94A8A0]">Date & Time</span>
-                    <span className="font-mono tabular-nums text-[#172B25] dark:text-[#EDF6F0]">
-                      {selectedTx.transaction_date} · {selectedTx.transaction_time}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between py-1.5 border-b border-[#E3EAE5] dark:border-[#253831]">
-                    <span className="text-[#75847D] dark:text-[#94A8A0]">E-Money Balance After</span>
-                    <span className="font-mono tabular-nums text-[#172B25] dark:text-[#EDF6F0]">
-                      {selectedTx.account_balance_minor_units !== null
-                        ? formatMinorUnits(selectedTx.account_balance_minor_units, currency)
-                        : '—'}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between py-1.5 border-b border-[#E3EAE5] dark:border-[#253831]">
-                    <span className="text-[#75847D] dark:text-[#94A8A0]">SMS Sender / Method</span>
-                    <span className="font-mono text-[#172B25] dark:text-[#EDF6F0]">
-                      {selectedTx.payment_method === PaymentMethod.TELEBIRR
-                        ? `Sender ID ${selectedTx.sms_sender} (Telebirr)`
-                        : 'MANUAL_CASH'}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between py-1.5 border-b border-[#E3EAE5] dark:border-[#253831]">
-                    <span className="text-[#75847D] dark:text-[#94A8A0]">Record Status</span>
-                    <span className="font-mono font-semibold text-[#172B25] dark:text-[#EDF6F0]">
-                      {selectedTx.transaction_status}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Manual Trip Association Editor (Section 8 & 10) */}
-                {isPositiveIncomingTransaction(selectedTx) && (
-                  <div className="pt-2">
-                    <label className="block text-xs font-bold text-[#172B25] dark:text-[#EDF6F0] mb-2 flex items-center gap-1.5">
-                      <Link2 className="w-3.5 h-3.5 text-[#16866A] dark:text-[#43C99A]" />
-                      Associated Trip (Change or Remove Without Altering SMS Data)
-                    </label>
-                    <select
-                      value={selectedTx.trip_id || ''}
-                      onChange={(e) =>
-                        assignTransactionToTrip(selectedTx.id, e.target.value || null)
-                      }
-                      className="w-full h-11 px-3 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831] text-xs font-medium text-[#172B25] dark:text-[#EDF6F0] focus:outline-none focus:border-[#16866A]"
-                    >
-                      <option value="">Unassigned (No Trip Linked)</option>
-                      {trips
-                        .filter((t) => t.status !== TripStatus.CANCELLED)
-                        .map((trip) => (
-                          <option key={trip.id} value={trip.id}>
-                            {trip.status === TripStatus.ACTIVE ? '[ACTIVE] ' : ''}
-                            {trip.start_location_name.replace(', Addis Ababa', '')} →{' '}
-                            {(trip.end_location_name || 'In Progress').replace(
-                              ', Addis Ababa',
-                              ''
-                            )}{' '}
-                            ({trip.start_time.slice(0, 10)})
-                          </option>
-                        ))}
-                    </select>
                   </div>
                 )}
-
-                <p className="text-[11px] text-[#75847D] dark:text-[#94A8A0] pt-2">
-                  Note: {settings.app_name} records SMS notifications from sender 127 locally and does
-                  not independently verify transactions against Telebirr&apos;s central ledger.
-                </p>
               </div>
-            ) : null}
-          </div>
-        </div>
-      )}
+            );
+          })
+        )}
+      </div>
     </div>
   );
 };

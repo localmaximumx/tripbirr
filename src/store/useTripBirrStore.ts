@@ -12,6 +12,8 @@ import {
 } from '../database/schema';
 import {
   createSeedDatabaseState,
+  CURRENT_DEMO_DISPLAY_DATE,
+  CURRENT_DEMO_ISO_DATE,
   loadDatabaseFromStorage,
   saveDatabaseToStorage,
 } from '../database/database';
@@ -267,8 +269,8 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         };
       }
 
-      const todayIso = parsed.isoDate || '2026-10-21';
-      const displayDate = parsed.transactionDate || '21/10/2026';
+      const todayIso = CURRENT_DEMO_ISO_DATE;
+      const displayDate = parsed.transactionDate || CURRENT_DEMO_DISPLAY_DATE;
       const displayTime =
         parsed.transactionTime ||
         new Date(nowIso).toLocaleTimeString([], {
@@ -412,12 +414,27 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
 
     startTrip: (params) => {
       const state = get();
-      const existingActive = state.trips.find((t) => t.status === TripStatus.ACTIVE);
-      if (existingActive) {
-        return null;
-      }
+      const timePart = new Date().toISOString().slice(11);
+      const nowIso = `${CURRENT_DEMO_ISO_DATE}T${timePart}`;
 
-      const nowIso = new Date().toISOString();
+      const updatedPreviousTrips = state.trips.map((t) => {
+        if (t.status === TripStatus.ACTIVE) {
+          return {
+            ...t,
+            end_location_name: params.startLocationName.trim() || 'Completed',
+            end_latitude: params.latitude,
+            end_longitude: params.longitude,
+            end_location_accuracy: params.accuracy,
+            end_location_source: params.source,
+            end_time: nowIso,
+            duration: t.duration || 1200,
+            status: TripStatus.COMPLETED,
+            updated_at: nowIso,
+          };
+        }
+        return t;
+      });
+
       const newTrip: TripRecord = {
         id: `trip_${Date.now()}`,
         start_location_name: params.startLocationName.trim() || 'Addis Ababa',
@@ -440,7 +457,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       };
 
       persistState({
-        trips: [newTrip, ...state.trips],
+        trips: [newTrip, ...updatedPreviousTrips],
       });
       return newTrip;
     },
@@ -450,10 +467,11 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       const target = state.trips.find((t) => t.id === tripId);
       if (!target) return null;
 
-      const endIso = new Date().toISOString();
+      const timePart = new Date().toISOString().slice(11);
+      const endIso = `${CURRENT_DEMO_ISO_DATE}T${timePart}`;
       const startMs = new Date(target.start_time).getTime();
       const endMs = new Date(endIso).getTime();
-      const durationSec = Math.max(60, Math.round((endMs - startMs) / 1000));
+      const durationSec = Math.max(60, Math.round(Math.abs(endMs - startMs) / 1000));
 
       const completedTrip: TripRecord = {
         ...target,
@@ -482,7 +500,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
 
     cancelTrip: (tripId) => {
       const state = get();
-      const nowIso = new Date().toISOString();
+      const nowIso = `${CURRENT_DEMO_ISO_DATE}T${new Date().toISOString().slice(11)}`;
       persistState({
         trips: state.trips.map((t) =>
           t.id === tripId
@@ -498,7 +516,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
 
     updateTripDetails: (tripId, updates) => {
       const state = get();
-      const nowIso = new Date().toISOString();
+      const nowIso = `${CURRENT_DEMO_ISO_DATE}T${new Date().toISOString().slice(11)}`;
       persistState({
         trips: state.trips.map((t) =>
           t.id === tripId ? { ...t, ...updates, updated_at: nowIso } : t
@@ -508,7 +526,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
 
     deleteTrip: (tripId) => {
       const state = get();
-      const nowIso = new Date().toISOString();
+      const nowIso = `${CURRENT_DEMO_ISO_DATE}T${new Date().toISOString().slice(11)}`;
       persistState({
         trips: state.trips.filter((t) => t.id !== tripId),
         transactions: state.transactions.map((tx) =>
@@ -519,7 +537,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
 
     assignTransactionToTrip: (transactionRecordId, tripId) => {
       const state = get();
-      const nowIso = new Date().toISOString();
+      const nowIso = `${CURRENT_DEMO_ISO_DATE}T${new Date().toISOString().slice(11)}`;
       persistState({
         transactions: state.transactions.map((tx) =>
           tx.id === transactionRecordId
@@ -532,7 +550,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
     addManualCashPayment: (params) => {
       const state = get();
       const now = new Date();
-      const nowIso = now.toISOString();
+      const nowIso = `${CURRENT_DEMO_ISO_DATE}T${now.toISOString().slice(11)}`;
       const timeStr = now.toLocaleTimeString([], {
         hour: '2-digit',
         minute: '2-digit',
@@ -548,17 +566,17 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         payment_method: PaymentMethod.CASH,
         amount_minor_units: params.amountMinorUnits,
         currency: 'ETB',
-        sender_name: params.senderName?.trim() || 'Cash Passenger',
+        sender_name: params.senderName?.trim() || 'Cash payment',
         sender_phone: null,
         recipient_name: state.driverProfile.sms_greeting_name,
-        transaction_date: '21/10/2026',
-        iso_date: '2026-10-21',
+        transaction_date: CURRENT_DEMO_DISPLAY_DATE,
+        iso_date: CURRENT_DEMO_ISO_DATE,
         transaction_time: timeStr,
         account_balance_minor_units: null,
         sms_sender: 'MANUAL_CASH',
         transaction_status: TransactionStatus.VALID,
         original_transaction_id: null,
-        description: params.description?.trim() || 'Manual cash fare entry',
+        description: params.description?.trim() ? `Note: ${params.description.trim()}` : 'Note: Cash fare',
         created_at: nowIso,
         updated_at: nowIso,
       };

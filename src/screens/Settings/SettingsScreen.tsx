@@ -1,27 +1,31 @@
 import React, { useState } from 'react';
 import {
-  Car,
   CheckCircle2,
+  ChevronRight,
   Code2,
   Database,
   Download,
   Edit3,
   RotateCcw,
   ShieldCheck,
-  User,
   Volume2,
   XCircle,
 } from 'lucide-react';
 import { useTripBirrStore } from '../../store/useTripBirrStore';
 import { runAutomatedVerificationSuite } from '../../__tests__/smsAndDatabaseSuite';
 import { NATIVE_ANDROID_KOTLIN_FILES } from '../../constants/androidKotlinSources';
-import { exportSqliteSqlDump } from '../../database/database';
+import { CURRENT_DEMO_ISO_DATE, exportSqliteSqlDump } from '../../database/database';
 import { speakPaymentAnnouncement } from '../../services/notifications/notificationService';
+import {
+  generateTransactionsCsv,
+  triggerCsvDownload,
+} from '../../services/reports/reportService';
 import { formatMinorUnits } from '../../utils/formatters';
 import { TripBirrLogo } from '../../components/TripBirrLogo';
 
 interface SettingsScreenProps {
   onOpenDriverProfile: () => void;
+  onOpenSmsSimulator?: () => void;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
@@ -41,6 +45,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     resetToSeedDatabase,
   } = useTripBirrStore();
 
+  const isDark = settings.theme === 'dark';
+
+  // Segmented control: 'SETTINGS' (default as shown on Page 5) or 'OVERVIEW'
+  const [subTab, setSubTab] = useState<'OVERVIEW' | 'SETTINGS'>('SETTINGS');
+  const [expandedPanel, setExpandedPanel] = useState<'NONE' | 'PRIVACY' | 'ABOUT'>('NONE');
   const [selectedKotlinFileIndex, setSelectedKotlinFileIndex] = useState(0);
   const [testResults, setTestResults] = useState(() =>
     runAutomatedVerificationSuite()
@@ -48,9 +57,27 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const passedCount = testResults.filter((r) => r.passed).length;
 
-  const latestBalanceTx = transactions.find(
-    (tx) => tx.account_balance_minor_units !== null
-  );
+  const initials = driverProfile.full_name
+    .split(' ')
+    .map((p) => p[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  const vehicleRoleLabel =
+    driverProfile.vehicle_type === 'MINIBUS_TAXI' ||
+    driverProfile.vehicle_type === 'LADA_TAXI'
+      ? 'Taxi driver'
+      : driverProfile.vehicle_type === 'METER_RIDE'
+      ? 'Ride-hail driver'
+      : driverProfile.vehicle_type === 'BAJAJ'
+      ? 'Bajaj driver'
+      : 'Driver';
+
+  const handleExportCsvData = () => {
+    const csv = generateTransactionsCsv(transactions, trips);
+    triggerCsvDownload(`tripbirr_export_${CURRENT_DEMO_ISO_DATE}.csv`, csv);
+  };
 
   const handleDownloadSqliteDump = () => {
     const sqlDump = exportSqliteSqlDump({
@@ -71,379 +98,515 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  const initials = driverProfile.full_name
-    .split(' ')
-    .map((p) => p[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-[#172B25] dark:text-[#EDF6F0]">
-          Driver Profile, Settings & React Native Android Source
-        </h1>
-        <p className="text-xs text-[#75847D] dark:text-[#94A8A0] mt-0.5">
-          Manage your driver profile, Telebirr 127 notification preferences, permissions, and React Native + Kotlin modules
-        </p>
+    <div className="space-y-4">
+      {/* Page Title (Matches Page 5: "Profile") */}
+      <h1
+        className={`text-[32px] font-extrabold tracking-tight pt-1 ${
+          isDark ? 'text-white' : 'text-[#0F172A]'
+        }`}
+      >
+        Profile
+      </h1>
+
+      {/* Driver Identity Card (Matches Page 5 verbatim) */}
+      <div
+        onClick={onOpenDriverProfile}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onOpenDriverProfile();
+        }}
+        className={`rounded-[26px] p-5 flex items-center justify-between gap-4 cursor-pointer transition-transform active:scale-[0.99] ${
+          isDark
+            ? 'bg-[#141B2D]'
+            : 'bg-white border border-slate-200/80 shadow-xs'
+        }`}
+      >
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="w-16 h-16 rounded-[20px] bg-[#2CD48D] text-[#052115] font-extrabold text-2xl flex items-center justify-center shrink-0">
+            {initials}
+          </div>
+
+          <div className="min-w-0">
+            <h2
+              className={`text-xl font-extrabold truncate ${
+                isDark ? 'text-white' : 'text-[#0F172A]'
+              }`}
+            >
+              {driverProfile.full_name}
+            </h2>
+            <p className="text-xs font-medium text-[#8E9BAE] truncate mt-0.5">
+              {driverProfile.telebirr_phone} · {vehicleRoleLabel}
+            </p>
+          </div>
+        </div>
+
+        <Edit3 className="w-4 h-4 text-[#8E9BAE] shrink-0" />
       </div>
 
-      {/* Android App Launcher Icon & Identity Card */}
-      <section className="rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] p-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-center gap-5">
-            <TripBirrLogo size={72} shape="squircle" className="shadow-md rounded-2xl" />
-            <div>
-              <span className="text-xs font-semibold text-[#16866A] dark:text-[#43C99A]">
-                Android Adaptive App Icon (API 26+)
-              </span>
-              <h2 className="text-lg font-bold text-[#172B25] dark:text-[#EDF6F0] mt-0.5">
-                TripBirr — Telebirr Driver Companion
-              </h2>
-              <p className="text-xs text-[#75847D] dark:text-[#94A8A0] mt-1 max-w-xl">
-                Crafted in Ethiopian emerald, mint, and gold — combining an Addis Ababa arterial route ribbon, a GPS endpoint pin with compass needle, and Telebirr 127 wireless payment waves.
-              </p>
-            </div>
-          </div>
+      {/* Segmented Control: Overview | Settings (Matches Page 5) */}
+      <div
+        className={`rounded-2xl p-1.5 grid grid-cols-2 ${
+          isDark
+            ? 'bg-[#141B2D]'
+            : 'bg-white border border-slate-200/80 shadow-xs'
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => setSubTab('OVERVIEW')}
+          className={`py-2.5 rounded-xl text-sm font-bold transition-colors cursor-pointer ${
+            subTab === 'OVERVIEW'
+              ? isDark
+                ? 'bg-[#1E2B45] text-white'
+                : 'bg-slate-100 text-[#0F172A]'
+              : 'text-[#8E9BAE]'
+          }`}
+        >
+          Overview
+        </button>
 
-          <div className="flex items-center gap-4 shrink-0">
-            <div className="flex items-center gap-3 bg-[#F5F7F5] dark:bg-[#101A17] px-3.5 py-2.5 rounded-xl border border-[#E3EAE5] dark:border-[#253831]">
-              <div className="flex flex-col items-center gap-1">
-                <TripBirrLogo size={40} shape="squircle" />
-                <span className="text-[10px] font-mono text-[#75847D]">Squircle</span>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <TripBirrLogo size={40} shape="circle" />
-                <span className="text-[10px] font-mono text-[#75847D]">Round</span>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <TripBirrLogo size={40} shape="rounded-square" />
-                <span className="text-[10px] font-mono text-[#75847D]">Legacy</span>
-              </div>
-            </div>
+        <button
+          type="button"
+          onClick={() => setSubTab('SETTINGS')}
+          className={`py-2.5 rounded-xl text-sm font-bold transition-colors cursor-pointer ${
+            subTab === 'SETTINGS'
+              ? isDark
+                ? 'bg-[#1E2B45] text-white'
+                : 'bg-slate-100 text-[#0F172A]'
+              : 'text-[#8E9BAE]'
+          }`}
+        >
+          Settings
+        </button>
+      </div>
 
-            <a
-              href="/tripbirr-icon.svg"
-              download="tripbirr-icon.svg"
-              className="min-h-[42px] px-3.5 py-2 rounded-xl bg-[#123C35] text-white dark:bg-[#43C99A] dark:text-[#101A17] text-xs font-semibold flex items-center gap-1.5 hover:opacity-95 transition-opacity whitespace-nowrap shrink-0"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Icon SVG
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* Prominent Driver Profile Section */}
-      <section className="rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[#E3EAE5] dark:border-[#253831]">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-[#123C35] text-[#43C99A] font-bold text-lg flex items-center justify-center shrink-0">
-              {initials}
-            </div>
-            <div>
-              <div className="flex items-center gap-2 text-xs text-[#16866A] dark:text-[#43C99A] font-semibold">
-                <User className="w-3.5 h-3.5" />
-                <span>Verified Telebirr Driver Profile</span>
-                <span aria-hidden="true">·</span>
-                <span className="font-mono">Matches &quot;Dear {driverProfile.sms_greeting_name}&quot;</span>
-              </div>
-              <h2 className="text-xl font-bold text-[#172B25] dark:text-[#EDF6F0] mt-0.5">
-                {driverProfile.full_name}
-              </h2>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-[#75847D] dark:text-[#94A8A0] mt-0.5">
-                <span className="font-mono">{driverProfile.telebirr_phone}</span>
-                <span aria-hidden="true">·</span>
-                <span className="font-mono">{driverProfile.vehicle_plate}</span>
-                <span aria-hidden="true">·</span>
-                <span>{driverProfile.sub_city}</span>
-              </div>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={onOpenDriverProfile}
-            className="min-h-[44px] px-4 py-2.5 rounded-xl bg-[#16866A] dark:bg-[#43C99A] text-white dark:text-[#101A17] text-xs font-bold flex items-center gap-2 hover:opacity-95 transition-opacity whitespace-nowrap shrink-0 cursor-pointer"
+      {subTab === 'SETTINGS' ? (
+        <>
+          {/* Appearance Card (Matches Page 5: Dark | Light toggle) */}
+          <section
+            className={`rounded-[26px] p-5 ${
+              isDark
+                ? 'bg-[#141B2D]'
+                : 'bg-white border border-slate-200/80 shadow-xs'
+            }`}
           >
-            <Edit3 className="w-4 h-4" />
-            Edit Driver Profile
-          </button>
-        </div>
+            <h3
+              className={`text-base font-extrabold mb-3.5 ${
+                isDark ? 'text-white' : 'text-[#0F172A]'
+              }`}
+            >
+              Appearance
+            </h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-5 text-xs">
-          <div>
-            <p className="text-[#75847D] dark:text-[#94A8A0]">Vehicle & Plate</p>
-            <p className="font-semibold text-[#172B25] dark:text-[#EDF6F0] mt-1 flex items-center gap-1.5">
-              <Car className="w-3.5 h-3.5 text-[#16866A] dark:text-[#43C99A]" />
-              {driverProfile.vehicle_type.replace('_', ' ')} ({driverProfile.vehicle_plate})
-            </p>
-          </div>
-          <div>
-            <p className="text-[#75847D] dark:text-[#94A8A0]">Primary Corridor</p>
-            <p className="font-semibold text-[#172B25] dark:text-[#EDF6F0] mt-1">
-              {driverProfile.primary_corridor}
-            </p>
-          </div>
-          <div>
-            <p className="text-[#75847D] dark:text-[#94A8A0]">Daily Earnings Goal</p>
-            <p className="font-mono font-bold text-[#172B25] dark:text-[#EDF6F0] mt-1">
-              {formatMinorUnits(driverProfile.daily_target_minor_units, settings.currency_display)}
-            </p>
-          </div>
-          <div>
-            <p className="text-[#75847D] dark:text-[#94A8A0]">Last E-Money Balance (SMS 127)</p>
-            <p className="font-mono font-bold text-[#22A06B] dark:text-[#43C99A] mt-1">
-              {latestBalanceTx?.account_balance_minor_units !== null &&
-              latestBalanceTx?.account_balance_minor_units !== undefined
-                ? formatMinorUnits(
-                    latestBalanceTx.account_balance_minor_units,
-                    settings.currency_display
-                  )
-                : '—'}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Preferences, Notifications & Permissions (6 cols) */}
-        <div className="lg:col-span-6 space-y-6">
-          {/* Payment Notification & Voice Settings (Section 6) */}
-          <div className="p-6 rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#E3EAE5] dark:border-[#253831]">
-              <div>
-                <h2 className="text-base font-bold text-[#172B25] dark:text-[#EDF6F0]">
-                  Payment Notification & Voice Announcement
-                </h2>
-                <p className="text-xs text-[#75847D] dark:text-[#94A8A0]">
-                  Hands-free feedback when Telebirr 127 payments arrive while driving
-                </p>
-              </div>
+            <div
+              className={`rounded-2xl p-1 grid grid-cols-2 ${
+                isDark ? 'bg-[#0B0F1A]' : 'bg-slate-100'
+              }`}
+            >
               <button
                 type="button"
-                onClick={() => speakPaymentAnnouncement(5000, 'Natnael Birhanu')}
-                className="min-h-[38px] px-3 py-1.5 rounded-xl bg-[#DDF5E9] dark:bg-[#1D352D] text-[#123C35] dark:text-[#43C99A] text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                onClick={() => updateSettings({ theme: 'dark' })}
+                className={`py-2.5 rounded-xl text-sm font-bold transition-colors cursor-pointer ${
+                  isDark
+                    ? 'bg-[#2CD48D] text-[#052115]'
+                    : 'text-[#64748B] hover:text-[#0F172A]'
+                }`}
               >
-                <Volume2 className="w-3.5 h-3.5" />
-                Test Voice TTS
+                Dark
+              </button>
+
+              <button
+                type="button"
+                onClick={() => updateSettings({ theme: 'light' })}
+                className={`py-2.5 rounded-xl text-sm font-bold transition-colors cursor-pointer ${
+                  !isDark
+                    ? 'bg-[#2CD48D] text-[#052115]'
+                    : 'text-[#8E9BAE] hover:text-white'
+                }`}
+              >
+                Light
               </button>
             </div>
+          </section>
 
-            <div className="space-y-3 text-xs">
-              {(
-                [
-                  {
-                    key: 'notification_sound',
-                    label: 'Notification Chime Sound',
-                    desc: 'Play offline two-tone audio alert on valid incoming payment',
-                  },
-                  {
-                    key: 'notification_vibration',
-                    label: 'Vibration Feedback',
-                    desc: 'Vibrate phone when payment from sender 127 is detected',
-                  },
-                  {
-                    key: 'voice_announcement',
-                    label: 'Voice Announcement (Text-to-Speech)',
-                    desc: 'Speak "Payment received, 50 birr from Natnael Birhanu"',
-                  },
-                  {
-                    key: 'notification_preview',
-                    label: 'Show Sender & Amount Banner Preview',
-                    desc: 'Display compact banner with one-tap Active Trip association',
-                  },
-                  {
-                    key: 'auto_suggest_trip_association',
-                    label: 'Suggest Active Trip Association',
-                    desc: 'Prompt to associate incoming payment when a trip is ACTIVE',
-                  },
-                  {
-                    key: 'silent_mode',
-                    label: 'Silent Driving Mode',
-                    desc: 'Mute all sounds and voice announcements while recording silently',
-                  },
-                ] as const
-              ).map((item) => (
-                <label
-                  key={item.key}
-                  className="flex items-center justify-between gap-4 py-2 border-b border-[#E3EAE5]/60 dark:border-[#253831]/60 cursor-pointer"
-                >
+          {/* 7-Item Settings Menu Card (Matches Page 5 verbatim) */}
+          <section
+            className={`rounded-[26px] overflow-hidden divide-y ${
+              isDark
+                ? 'bg-[#141B2D] divide-white/5'
+                : 'bg-white border border-slate-200/80 divide-slate-100 shadow-xs'
+            }`}
+          >
+            {/* 1. Language */}
+            <button
+              type="button"
+              onClick={() =>
+                updateSettings({
+                  language: settings.language === 'en' ? 'am' : 'en',
+                })
+              }
+              className="w-full px-5 py-4 flex items-center justify-between text-left cursor-pointer hover:opacity-90"
+            >
+              <span
+                className={`text-sm font-bold ${
+                  isDark ? 'text-white' : 'text-[#0F172A]'
+                }`}
+              >
+                Language
+              </span>
+              <span className="text-sm text-[#8E9BAE] flex items-center gap-1">
+                {settings.language === 'en' ? 'English' : 'አማርኛ (Amharic)'}
+                <ChevronRight className="w-4 h-4" />
+              </span>
+            </button>
+
+            {/* 2. Notifications */}
+            <button
+              type="button"
+              onClick={() =>
+                updateSettings({
+                  notification_sound: !settings.notification_sound,
+                  voice_announcement: !settings.voice_announcement,
+                })
+              }
+              className="w-full px-5 py-4 flex items-center justify-between text-left cursor-pointer hover:opacity-90"
+            >
+              <span
+                className={`text-sm font-bold ${
+                  isDark ? 'text-white' : 'text-[#0F172A]'
+                }`}
+              >
+                Notifications
+              </span>
+              <span className="text-sm text-[#8E9BAE] flex items-center gap-1">
+                {settings.notification_sound ? 'On' : 'Off'}
+                <ChevronRight className="w-4 h-4" />
+              </span>
+            </button>
+
+            {/* 3. Location access */}
+            <button
+              type="button"
+              onClick={() =>
+                setLocationPermissionStatus(
+                  settings.location_permission_status === 'GRANTED'
+                    ? 'DENIED'
+                    : 'GRANTED'
+                )
+              }
+              className="w-full px-5 py-4 flex items-center justify-between text-left cursor-pointer hover:opacity-90"
+            >
+              <span
+                className={`text-sm font-bold ${
+                  isDark ? 'text-white' : 'text-[#0F172A]'
+                }`}
+              >
+                Location access
+              </span>
+              <span className="text-sm text-[#8E9BAE] flex items-center gap-1">
+                {settings.location_permission_status === 'GRANTED'
+                  ? 'Allowed'
+                  : 'Denied'}
+                <ChevronRight className="w-4 h-4" />
+              </span>
+            </button>
+
+            {/* 4. SMS access (sender 127) */}
+            <button
+              type="button"
+              onClick={() =>
+                setSmsPermissionStatus(
+                  settings.sms_permission_status === 'GRANTED'
+                    ? 'DENIED'
+                    : 'GRANTED'
+                )
+              }
+              className="w-full px-5 py-4 flex items-center justify-between text-left cursor-pointer hover:opacity-90"
+            >
+              <span
+                className={`text-sm font-bold ${
+                  isDark ? 'text-white' : 'text-[#0F172A]'
+                }`}
+              >
+                SMS access (sender 127)
+              </span>
+              <span className="text-sm text-[#8E9BAE] flex items-center gap-1">
+                {settings.sms_permission_status === 'GRANTED'
+                  ? 'Allowed'
+                  : 'Denied'}
+                <ChevronRight className="w-4 h-4" />
+              </span>
+            </button>
+
+            {/* 5. Export data */}
+            <button
+              type="button"
+              onClick={handleExportCsvData}
+              className="w-full px-5 py-4 flex items-center justify-between text-left cursor-pointer hover:opacity-90"
+            >
+              <span
+                className={`text-sm font-bold ${
+                  isDark ? 'text-white' : 'text-[#0F172A]'
+                }`}
+              >
+                Export data
+              </span>
+              <span className="text-sm text-[#8E9BAE] flex items-center gap-1">
+                CSV
+                <ChevronRight className="w-4 h-4" />
+              </span>
+            </button>
+
+            {/* 6. Privacy */}
+            <button
+              type="button"
+              onClick={() =>
+                setExpandedPanel(expandedPanel === 'PRIVACY' ? 'NONE' : 'PRIVACY')
+              }
+              className="w-full px-5 py-4 flex items-center justify-between text-left cursor-pointer hover:opacity-90"
+            >
+              <span
+                className={`text-sm font-bold ${
+                  isDark ? 'text-white' : 'text-[#0F172A]'
+                }`}
+              >
+                Privacy
+              </span>
+              <span className="text-sm text-[#8E9BAE] flex items-center gap-1">
+                <ChevronRight className="w-4 h-4" />
+              </span>
+            </button>
+
+            {/* 7. About TripBirr */}
+            <button
+              type="button"
+              onClick={() =>
+                setExpandedPanel(expandedPanel === 'ABOUT' ? 'NONE' : 'ABOUT')
+              }
+              className="w-full px-5 py-4 flex items-center justify-between text-left cursor-pointer hover:opacity-90"
+            >
+              <span
+                className={`text-sm font-bold ${
+                  isDark ? 'text-white' : 'text-[#0F172A]'
+                }`}
+              >
+                About TripBirr
+              </span>
+              <span className="text-sm text-[#8E9BAE] flex items-center gap-1">
+                v1.0
+                <ChevronRight className="w-4 h-4" />
+              </span>
+            </button>
+          </section>
+
+          {/* Expandable Privacy Sheet */}
+          {expandedPanel === 'PRIVACY' && (
+            <div
+              className={`rounded-[24px] p-5 space-y-2 border ${
+                isDark
+                  ? 'bg-[#141B2D] border-[#2CD48D]/40 text-white'
+                  : 'bg-white border-slate-200 text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2 text-xs font-extrabold text-[#2CD48D]">
+                <ShieldCheck className="w-4 h-4" />
+                <span>100% Offline Privacy Guarantee</span>
+              </div>
+              <p className="text-xs text-[#8E9BAE] leading-relaxed">
+                TripBirr strictly filters incoming Android broadcasts for Telebirr sender ID{' '}
+                <strong className="text-white">127</strong>. Personal SMS messages from other senders are ignored immediately and raw SMS bodies are never stored in full or uploaded to any cloud server.
+              </p>
+            </div>
+          )}
+
+          {/* Expandable About TripBirr (App Icon + Automated Tests + RN/Kotlin Source) */}
+          {expandedPanel === 'ABOUT' && (
+            <div
+              className={`rounded-[24px] p-5 space-y-4 border ${
+                isDark
+                  ? 'bg-[#141B2D] border-white/10'
+                  : 'bg-white border-slate-200 shadow-xs'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3.5">
+                  <TripBirrLogo size={54} shape="squircle" />
                   <div>
-                    <p className="font-semibold text-[#172B25] dark:text-[#EDF6F0]">
-                      {item.label}
+                    <p
+                      className={`text-sm font-extrabold ${
+                        isDark ? 'text-white' : 'text-slate-900'
+                      }`}
+                    >
+                      TripBirr Android v1.0
                     </p>
-                    <p className="text-[#75847D] dark:text-[#94A8A0] mt-0.5">
-                      {item.desc}
+                    <p className="text-xs text-[#8E9BAE]">
+                      SQLite v{schemaVersion} · {passedCount}/{testResults.length} Unit Tests Passing
                     </p>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(settings[item.key])}
-                    onChange={(e) =>
-                      updateSettings({ [item.key]: e.target.checked })
-                    }
-                    className="w-5 h-5 accent-[#16866A] rounded cursor-pointer shrink-0"
-                  />
-                </label>
-              ))}
-            </div>
-          </div>
+                </div>
 
-          {/* App Configuration & Theme */}
-          <div className="p-6 rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] space-y-4">
-            <h2 className="text-base font-bold text-[#172B25] dark:text-[#EDF6F0] pb-3 border-b border-[#E3EAE5] dark:border-[#253831]">
-              Application Appearance & Working Name
-            </h2>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div>
-                <label className="block font-semibold text-[#172B25] dark:text-[#EDF6F0] mb-1">
-                  Configurable Project Name
-                </label>
-                <input
-                  type="text"
-                  value={settings.app_name}
-                  onChange={(e) =>
-                    updateSettings({ app_name: e.target.value || 'TripBirr' })
-                  }
-                  className="w-full h-10 px-3 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-[#172B25] dark:text-[#EDF6F0] mb-1">
-                  Currency Display Format
-                </label>
-                <select
-                  value={settings.currency_display}
-                  onChange={(e) =>
-                    updateSettings({
-                      currency_display: e.target.value as 'ETB' | 'Birr',
-                    })
-                  }
-                  className="w-full h-10 px-3 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831]"
+                <a
+                  href="/tripbirr-icon.svg"
+                  download="tripbirr-icon.svg"
+                  className="px-3 py-1.5 rounded-xl bg-[#2CD48D] text-[#052115] text-xs font-extrabold flex items-center gap-1"
                 >
-                  <option value="ETB">ETB (e.g., ETB 50.00)</option>
-                  <option value="Birr">Birr (e.g., Birr 50.00)</option>
-                </select>
+                  <Download className="w-3.5 h-3.5" />
+                  Icon
+                </a>
               </div>
-            </div>
 
-            <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold text-[#172B25] dark:text-[#EDF6F0]">
-                  Android Permission Simulation Controls
-                </p>
-                <p className="text-xs text-[#75847D] dark:text-[#94A8A0]">
-                  Test how the app behaves when RECEIVE_SMS is granted vs denied
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() =>
-                    setSmsPermissionStatus(
-                      settings.sms_permission_status === 'GRANTED'
-                        ? 'DENIED'
-                        : 'GRANTED'
-                    )
-                  }
-                  className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-semibold border ${
-                    settings.sms_permission_status === 'GRANTED'
-                      ? 'bg-[#DDF5E9] dark:bg-[#1D352D] text-[#123C35] dark:text-[#43C99A] border-[#16866A]/30'
-                      : 'bg-[#D9534F]/15 text-[#D9534F] border-[#D9534F]'
+                  onClick={() => speakPaymentAnnouncement(5000, 'Natnael Birhanu')}
+                  className="px-3 py-1.5 rounded-xl bg-[#5CA4F8]/15 text-[#5CA4F8] text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                  Test Voice Alert
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadSqliteDump}
+                  className="px-3 py-1.5 rounded-xl bg-[#2CD48D]/15 text-[#2CD48D] text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Database className="w-3.5 h-3.5" />
+                  SQLite .sql Dump
+                </button>
+                <button
+                  type="button"
+                  onClick={resetToSeedDatabase}
+                  className="px-3 py-1.5 rounded-xl bg-[#F5BA36]/15 text-[#F5BA36] text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Reset Demo Data
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        /* OVERVIEW TAB: Driver Vehicle Details, App Icon, Automated Test Suite & RN/Kotlin Code */
+        <div className="space-y-4">
+          <section
+            className={`rounded-[26px] p-5 space-y-3 ${
+              isDark
+                ? 'bg-[#141B2D]'
+                : 'bg-white border border-slate-200/80 shadow-xs'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <h3
+                className={`text-base font-extrabold ${
+                  isDark ? 'text-white' : 'text-[#0F172A]'
+                }`}
+              >
+                Driver & Vehicle Details
+              </h3>
+              <button
+                type="button"
+                onClick={onOpenDriverProfile}
+                className="px-3 py-1.5 rounded-xl bg-[#2CD48D] text-[#052115] text-xs font-extrabold cursor-pointer"
+              >
+                Edit Profile
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 text-xs">
+              <div
+                className={`p-3 rounded-2xl ${
+                  isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'
+                }`}
+              >
+                <p className="text-[#8E9BAE]">SMS Greeting Name</p>
+                <p
+                  className={`font-bold font-mono mt-0.5 ${
+                    isDark ? 'text-white' : 'text-slate-900'
                   }`}
                 >
-                  RECEIVE_SMS: {settings.sms_permission_status}
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setLocationPermissionStatus(
-                      settings.location_permission_status === 'GRANTED'
-                        ? 'DENIED'
-                        : 'GRANTED'
-                    )
-                  }
-                  className="min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-semibold border border-[#E3EAE5] dark:border-[#253831]"
+                  Dear {driverProfile.sms_greeting_name}
+                </p>
+              </div>
+
+              <div
+                className={`p-3 rounded-2xl ${
+                  isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'
+                }`}
+              >
+                <p className="text-[#8E9BAE]">Vehicle Plate</p>
+                <p
+                  className={`font-bold font-mono mt-0.5 ${
+                    isDark ? 'text-white' : 'text-slate-900'
+                  }`}
                 >
-                  GPS: {settings.location_permission_status}
-                </button>
+                  {driverProfile.vehicle_plate}
+                </p>
+              </div>
+
+              <div
+                className={`p-3 rounded-2xl ${
+                  isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'
+                }`}
+              >
+                <p className="text-[#8E9BAE]">Primary Corridor</p>
+                <p
+                  className={`font-bold truncate mt-0.5 ${
+                    isDark ? 'text-white' : 'text-slate-900'
+                  }`}
+                >
+                  {driverProfile.primary_corridor}
+                </p>
+              </div>
+
+              <div
+                className={`p-3 rounded-2xl ${
+                  isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'
+                }`}
+              >
+                <p className="text-[#8E9BAE]">Daily Target</p>
+                <p className="font-bold font-mono text-[#2CD48D] mt-0.5">
+                  {formatMinorUnits(
+                    driverProfile.daily_target_minor_units,
+                    settings.currency_display
+                  )}
+                </p>
               </div>
             </div>
-          </div>
+          </section>
 
-          {/* SQLite Database Management */}
-          <div className="p-6 rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] space-y-4">
+          {/* React Native + Kotlin Source Inspector */}
+          <section
+            className={`rounded-[26px] p-5 space-y-3 ${
+              isDark
+                ? 'bg-[#141B2D]'
+                : 'bg-white border border-slate-200/80 shadow-xs'
+            }`}
+          >
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Database className="w-4 h-4 text-[#16866A] dark:text-[#43C99A]" />
-                <h2 className="text-base font-bold text-[#172B25] dark:text-[#EDF6F0]">
-                  Offline SQLite Database & Privacy
-                </h2>
-              </div>
-              <span className="text-xs font-mono text-[#75847D]">
-                Schema v{schemaVersion}
+              <span
+                className={`text-sm font-extrabold flex items-center gap-1.5 ${
+                  isDark ? 'text-white' : 'text-[#0F172A]'
+                }`}
+              >
+                <Code2 className="w-4 h-4 text-[#2CD48D]" />
+                React Native & Kotlin Modules
+              </span>
+              <span className="text-xs font-mono text-[#2CD48D]">
+                {passedCount}/{testResults.length} Tests Passed
               </span>
             </div>
 
-            <p className="text-xs text-[#75847D] dark:text-[#94A8A0]">
-              All financial records are stored locally in normalized tables (
-              <span className="font-mono">driver_profile</span>,{' '}
-              <span className="font-mono">trips</span>,{' '}
-              <span className="font-mono">transactions</span>,{' '}
-              <span className="font-mono">sms_processing_records</span>,{' '}
-              <span className="font-mono">settings</span>). No internet connection or cloud account is required.
-            </p>
-
-            <div className="flex flex-wrap items-center gap-3 pt-1">
-              <button
-                type="button"
-                onClick={handleDownloadSqliteDump}
-                className="min-h-[42px] px-4 py-2 rounded-xl bg-[#123C35] dark:bg-[#43C99A] text-white dark:text-[#101A17] text-xs font-semibold flex items-center gap-2"
-              >
-                <Download className="w-4 h-4" />
-                Export SQLite .sql Dump
-              </button>
-              <button
-                type="button"
-                onClick={resetToSeedDatabase}
-                className="min-h-[42px] px-4 py-2 rounded-xl border border-[#E3EAE5] dark:border-[#253831] text-xs font-semibold text-[#75847D] hover:text-[#172B25] dark:hover:text-[#EDF6F0] flex items-center gap-2"
-              >
-                <RotateCcw className="w-4 h-4" />
-                Reset Demo SQLite Data
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Automated Unit Test Suite & React Native + Kotlin Files (6 cols) */}
-        <div className="lg:col-span-6 space-y-6">
-          {/* React Native CLI + Native Android Kotlin Source Code Inspector */}
-          <div className="p-6 rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] space-y-4">
-            <div>
-              <h2 className="text-base font-bold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-2">
-                <Code2 className="w-4 h-4 text-[#16866A] dark:text-[#43C99A]" />
-                React Native CLI & Native Android Kotlin Source Files
-              </h2>
-              <p className="text-xs text-[#75847D] dark:text-[#94A8A0] mt-0.5">
-                Production <span className="font-mono">react-native/</span> and{' '}
-                <span className="font-mono">android/app/src/main/</span> files generated in this repository
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
               {NATIVE_ANDROID_KOTLIN_FILES.map((file, idx) => (
                 <button
                   key={file.path}
                   type="button"
                   onClick={() => setSelectedKotlinFileIndex(idx)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-colors ${
+                  className={`px-3 py-1 rounded-full text-[11px] font-mono whitespace-nowrap cursor-pointer ${
                     selectedKotlinFileIndex === idx
-                      ? 'bg-[#123C35] text-white dark:bg-[#43C99A] dark:text-[#101A17] font-semibold'
-                      : 'bg-[#F5F7F5] dark:bg-[#101A17] text-[#75847D]'
+                      ? 'bg-[#2CD48D] text-[#052115] font-bold'
+                      : 'bg-[#0B0F1A] text-[#8E9BAE]'
                   }`}
                 >
                   {file.path.split('/').pop()}
@@ -451,66 +614,43 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               ))}
             </div>
 
-            <div className="p-3.5 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831]">
-              <p className="text-xs font-semibold text-[#172B25] dark:text-[#EDF6F0]">
-                {NATIVE_ANDROID_KOTLIN_FILES[selectedKotlinFileIndex].title}
-              </p>
-              <p className="text-xs text-[#75847D] dark:text-[#94A8A0] mt-0.5">
-                {NATIVE_ANDROID_KOTLIN_FILES[selectedKotlinFileIndex].responsibility}
-              </p>
-              <pre className="mt-3 p-3 rounded-lg bg-[#101A17] text-[#EDF6F0] font-mono text-[11px] overflow-x-auto max-h-64">
-                {NATIVE_ANDROID_KOTLIN_FILES[selectedKotlinFileIndex].code}
-              </pre>
-            </div>
-          </div>
+            <pre className="p-3 rounded-2xl bg-[#0B0F1A] text-[#DDF5E9] font-mono text-[10px] leading-relaxed overflow-x-auto max-h-60">
+              <code>{NATIVE_ANDROID_KOTLIN_FILES[selectedKotlinFileIndex].code}</code>
+            </pre>
 
-          {/* Automated Verification Test Suite (Section 19) */}
-          <div className="p-6 rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#E3EAE5] dark:border-[#253831]">
-              <div>
-                <h2 className="text-base font-bold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-[#22A06B] dark:text-[#43C99A]" />
-                  SMS Parser & Database Unit Test Suite ({passedCount}/{testResults.length} Passed)
-                </h2>
-                <p className="text-xs text-[#75847D] dark:text-[#94A8A0]">
-                  Verifies Section 5 & Section 19 requirements against live parser and financial logic
-                </p>
+            {/* Automated Verification Results */}
+            <div className="pt-2 space-y-1.5 max-h-48 overflow-y-auto">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-[#8E9BAE]">
+                  Automated SMS & SQLite Verification Suite
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setTestResults(runAutomatedVerificationSuite())}
+                  className="text-[11px] font-bold text-[#2CD48D] cursor-pointer"
+                >
+                  Re-run
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setTestResults(runAutomatedVerificationSuite())}
-                className="min-h-[36px] px-3 py-1.5 rounded-lg bg-[#F5F7F5] dark:bg-[#101A17] text-xs font-semibold text-[#16866A] dark:text-[#43C99A]"
-              >
-                Re-run Suite
-              </button>
-            </div>
-
-            <div className="max-h-64 overflow-y-auto divide-y divide-[#E3EAE5] dark:divide-[#253831] pr-1">
-              {testResults.map((test) => (
-                <div key={test.id} className="py-2.5 text-xs">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-1.5">
-                      {test.passed ? (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#22A06B] shrink-0" />
-                      ) : (
-                        <XCircle className="w-3.5 h-3.5 text-[#D9534F] shrink-0" />
-                      )}
-                      <span className="font-mono text-[#75847D]">{test.id}</span>
-                      <span>{test.name}</span>
-                    </span>
-                    <span className="font-mono text-[11px] text-[#22A06B] dark:text-[#43C99A] shrink-0">
-                      {test.passed ? 'PASS' : 'FAIL'}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#75847D] dark:text-[#94A8A0] font-mono mt-0.5 pl-5">
-                    {test.details}
-                  </p>
+              {testResults.map((tc) => (
+                <div
+                  key={tc.id}
+                  className="p-2 rounded-xl bg-[#0B0F1A] flex items-center justify-between text-[11px]"
+                >
+                  <span className="text-white truncate pr-2">
+                    <strong className="text-[#2CD48D] font-mono">{tc.id}</strong> · {tc.name}
+                  </span>
+                  {tc.passed ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#2CD48D] shrink-0" />
+                  ) : (
+                    <XCircle className="w-3.5 h-3.5 text-[#F87171] shrink-0" />
+                  )}
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         </div>
-      </div>
+      )}
     </div>
   );
 };

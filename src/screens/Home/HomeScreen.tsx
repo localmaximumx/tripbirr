@@ -1,43 +1,53 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
-  AlertTriangle,
-  ArrowDownLeft,
-  ArrowRight,
-  ArrowUpRight,
+  ArrowDown,
   Banknote,
-  CheckCircle2,
-  Link2,
-  MapPin,
+  Bell,
+  ChevronDown,
+  ChevronUp,
   MessageSquarePlus,
   Navigation,
-  RotateCcw,
-  ShieldCheck,
   StopCircle,
 } from 'lucide-react';
 import { useTripBirrStore } from '../../store/useTripBirrStore';
 import {
   PaymentMethod,
+  TransactionRecord,
   TransactionStatus,
   TripStatus,
 } from '../../database/schema';
+import { CURRENT_DEMO_ISO_DATE } from '../../database/database';
 import {
   calculateTripTotalMinorUnits,
   computeFinancialReport,
-  isOutgoingTransaction,
   isPositiveIncomingTransaction,
 } from '../../services/reports/reportService';
-import {
-  formatDurationSeconds,
-  formatIsoToShortTime,
-  formatMinorUnits,
-} from '../../utils/formatters';
 import { LiveTripMap } from '../../components/LiveTripMap';
 
 interface HomeScreenProps {
-  onNavigate: (tab: 'home' | 'trips' | 'transactions' | 'reports' | 'settings') => void;
+  onNavigate: (
+    tab: 'home' | 'trips' | 'transactions' | 'reports' | 'settings',
+    filterHint?: string
+  ) => void;
   onOpenTripModal: (mode: 'START' | 'END') => void;
   onOpenCashModal: (tripId?: string | null) => void;
   onOpenSmsSimulator: () => void;
+}
+
+function formatTime12Hour(time24: string): string {
+  const parts = time24.split(':');
+  if (parts.length < 2) return time24;
+  const h = parseInt(parts[0], 10);
+  const m = parts[1];
+  if (isNaN(h)) return time24;
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${m} ${suffix}`;
+}
+
+function formatWholeNumberWithCommas(minorUnits: number): string {
+  const major = Math.round(minorUnits / 100);
+  return major.toLocaleString('en-US');
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -46,15 +56,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenCashModal,
   onOpenSmsSimulator,
 }) => {
-  const {
-    trips,
-    transactions,
-    settings,
-    setSmsPermissionStatus,
-    assignTransactionToTrip,
-  } = useTripBirrStore();
+  const { driverProfile, trips, transactions, settings } = useTripBirrStore();
+  const [showLiveMap, setShowLiveMap] = useState(false);
 
+  const isDark = settings.theme === 'dark';
   const currency = settings.currency_display;
+
   const activeTrip = trips.find((t) => t.status === TripStatus.ACTIVE) || null;
   const activeTripSummary = activeTrip
     ? calculateTripTotalMinorUnits(activeTrip.id, transactions)
@@ -64,574 +71,406 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     trips,
     transactions,
     'TODAY',
-    '2026-10-21'
+    CURRENT_DEMO_ISO_DATE
   );
 
-  const unassignedIncomingTransactions = transactions.filter(
+  const totalMinor = todayReport.combinedNetIncomeMinorUnits;
+  const totalMajorWhole = Math.floor(totalMinor / 100).toLocaleString('en-US');
+  const totalCents = String(Math.abs(totalMinor % 100)).padStart(2, '0');
+
+  const telebirrMinor = todayReport.netTelebirrIncomingMinorUnits;
+  const cashMinor = todayReport.manualCashIncomingMinorUnits;
+  const telebirrPct =
+    totalMinor > 0 ? Math.max(12, Math.min(88, Math.round((telebirrMinor / totalMinor) * 100))) : 70;
+
+  const unassignedTransactions = transactions.filter(
     (tx) =>
+      tx.iso_date === CURRENT_DEMO_ISO_DATE &&
       isPositiveIncomingTransaction(tx) &&
       tx.transaction_status === TransactionStatus.VALID &&
       tx.trip_id === null
   );
+  const unassignedTotalMinor = unassignedTransactions.reduce(
+    (acc, tx) => acc + tx.amount_minor_units,
+    0
+  );
 
-  const recentTransactions = transactions.slice(0, 6);
-  const recentCompletedTrips = trips
-    .filter((t) => t.status === TripStatus.COMPLETED)
-    .slice(0, 4);
+  // Recent payments displayed on Home: Natnael Birhanu (+50.00) and Cash (+120.00) first, followed by recent today items
+  const todayIncoming = transactions.filter(
+    (tx) =>
+      tx.iso_date === CURRENT_DEMO_ISO_DATE &&
+      isPositiveIncomingTransaction(tx) &&
+      tx.transaction_status === TransactionStatus.VALID
+  );
+
+  const featuredRecent: TransactionRecord[] = [
+    ...todayIncoming.filter((tx) => tx.id === 'tx_nov1_01' || tx.id === 'tx_nov1_03'),
+    ...todayIncoming.filter((tx) => tx.id !== 'tx_nov1_01' && tx.id !== 'tx_nov1_03'),
+  ].slice(0, 4);
+
+  const getTripRouteShort = (tripId: string | null): string => {
+    if (!tripId) return 'Needs trip';
+    const tr = trips.find((t) => t.id === tripId);
+    if (!tr) return 'Unassigned';
+    const startShort = tr.start_location_name.replace(', Addis Ababa', '');
+    const endShort = tr.end_location_name
+      ? tr.end_location_name.replace(', Addis Ababa', '')
+      : 'In progress';
+    return `${startShort} → ${endShort}`;
+  };
+
+  // Intraday bar heights matching the 6-bar visual in the PDF hero card
+  const intradayBars = [28, 36, 28, 46, 32, 62];
 
   return (
-    <div className="space-y-8">
-      {/* SMS Permission Warning Banner (Section 4) */}
-      {settings.sms_permission_status !== 'GRANTED' && (
-        <div className="p-5 rounded-2xl bg-white dark:bg-[#192722] border border-[#E9A23B] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-[#E9A23B] shrink-0 mt-0.5" />
-            <div>
-              <h2 className="text-sm font-bold text-[#172B25] dark:text-[#EDF6F0]">
-                Android SMS Permission Required for Automatic Telebirr 127 Detection
-              </h2>
-              <p className="text-xs text-[#75847D] dark:text-[#94A8A0] mt-1 max-w-2xl">
-                {settings.app_name} only inspects incoming messages from Telebirr sender ID{' '}
-                <span className="font-mono font-semibold">127</span> to extract payment amounts and
-                sender names while you drive. Your personal inbox is never read or uploaded.
-              </p>
-            </div>
-          </div>
+    <div className="space-y-4">
+      {/* Top Greeting & Notification Bell Header (Matches Page 1 & Page 6) */}
+      <div className="flex items-center justify-between pt-1 pb-1">
+        <div>
+          <p className="text-sm font-medium text-[#8E9BAE]">Sunday, Nov 1</p>
+          <h1
+            className={`text-[30px] font-extrabold tracking-tight leading-tight mt-0.5 ${
+              isDark ? 'text-white' : 'text-[#0F172A]'
+            }`}
+          >
+            Selam, {driverProfile.sms_greeting_name}
+          </h1>
+        </div>
+
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setSmsPermissionStatus('GRANTED')}
-            className="min-h-[44px] px-4 py-2 rounded-xl bg-[#16866A] text-white text-xs font-semibold flex items-center gap-2 whitespace-nowrap shrink-0"
+            onClick={() => onOpenCashModal(activeTrip?.id || null)}
+            className={`h-12 px-3.5 rounded-full flex items-center gap-1.5 text-xs font-bold transition-transform active:scale-95 cursor-pointer ${
+              isDark
+                ? 'bg-[#141B2D] text-[#F5BA36] border border-white/5'
+                : 'bg-white text-[#B45309] border border-slate-200/80 shadow-xs'
+            }`}
+            title="Log Manual Cash Payment"
           >
-            <ShieldCheck className="w-4 h-4" />
-            Grant RECEIVE_SMS Permission
+            <Banknote className="w-4 h-4" />
+            <span>+Cash</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenSmsSimulator}
+            className={`w-12 h-12 rounded-full flex items-center justify-center relative transition-transform active:scale-95 cursor-pointer ${
+              isDark
+                ? 'bg-[#141B2D] text-white border border-white/5'
+                : 'bg-white text-[#0F172A] border border-slate-200/80 shadow-xs'
+            }`}
+            aria-label="Open Telebirr 127 SMS Testbench & Notifications"
+            title="Simulate Incoming Telebirr 127 SMS"
+          >
+            <Bell className="w-5 h-5" />
+            <span className="w-2.5 h-2.5 rounded-full bg-[#2CD48D] absolute top-3 right-3 ring-2 ring-[#141B2D]" />
           </button>
         </div>
-      )}
+      </div>
 
-      {/* Dominant Focal Anchor: Active Trip Card OR Start Trip Command Center */}
-      {activeTrip && activeTripSummary ? (
-        <section className="rounded-2xl bg-[#123C35] text-white p-6 sm:p-7 border border-[#16866A]/40 shadow-sm">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs text-[#DDF5E9] font-medium">
-                <Navigation className="w-3.5 h-3.5 text-[#43C99A]" />
-                <span>Active Trip in Progress</span>
-                <span aria-hidden="true">·</span>
-                <span className="font-mono tabular-nums">
-                  Started {formatIsoToShortTime(activeTrip.start_time)}
-                </span>
-                <span aria-hidden="true">·</span>
-                <span className="font-mono">{activeTrip.start_location_source}</span>
-              </div>
+      {/* Hero Royal Blue Today's Earnings Card (Matches Page 1 & Page 6) */}
+      <section className="rounded-[28px] bg-[#182E6F] p-6 text-white shadow-lg">
+        <p className="text-sm font-medium text-[#B4C6EE]">Today&apos;s earnings</p>
 
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white text-balance">
-                From {activeTrip.start_location_name}
-              </h1>
-
-              {activeTrip.notes && (
-                <p className="text-xs text-[#DDF5E9]/80">{activeTrip.notes}</p>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={onOpenSmsSimulator}
-                className="min-h-[44px] px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold flex items-center gap-2 transition-colors whitespace-nowrap shrink-0"
-              >
-                <MessageSquarePlus className="w-4 h-4 text-[#43C99A]" />
-                Simulate 127 SMS
-              </button>
-              <button
-                type="button"
-                onClick={() => onOpenCashModal(activeTrip.id)}
-                className="min-h-[44px] px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold flex items-center gap-2 transition-colors whitespace-nowrap shrink-0"
-              >
-                <Banknote className="w-4 h-4 text-[#43C99A]" />
-                Add Cash Fare
-              </button>
-              <button
-                type="button"
-                onClick={() => onOpenTripModal('END')}
-                className="min-h-[48px] px-6 py-2.5 rounded-xl bg-[#43C99A] text-[#101A17] text-sm font-bold flex items-center gap-2 hover:opacity-95 transition-opacity whitespace-nowrap shrink-0"
-              >
-                <StopCircle className="w-4 h-4" />
-                End Trip
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-6 pt-6 border-t border-white/15 grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <div>
-              <p className="text-xs text-[#DDF5E9]/80">Total Collected So Far</p>
-              <p className="text-2xl font-bold font-mono tabular-nums text-[#43C99A] mt-1">
-                {formatMinorUnits(activeTripSummary.totalMinorUnits, currency)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-[#DDF5E9]/80">Associated Payments</p>
-              <p className="text-2xl font-bold font-mono tabular-nums text-white mt-1">
-                {activeTripSummary.paymentCount}{' '}
-                <span className="text-xs font-normal text-[#DDF5E9]/80">
-                  ({formatMinorUnits(activeTripSummary.telebirrMinorUnits, currency)} Telebirr)
-                </span>
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-[#DDF5E9]/80">Start Coordinates</p>
-              <p className="text-sm font-mono tabular-nums text-white mt-2">
-                {activeTrip.start_latitude && activeTrip.start_longitude
-                  ? `${activeTrip.start_latitude.toFixed(4)}° N, ${activeTrip.start_longitude.toFixed(4)}° E`
-                  : 'Manual Entry'}
-              </p>
-            </div>
-          </div>
-
-          {/* Live Interactive Map for the Active Trip */}
-          <div className="mt-6">
-            <LiveTripMap
-              trip={activeTrip}
-              associatedTransactions={activeTripSummary.transactions}
-              currency={currency}
-            />
-          </div>
-
-          {activeTripSummary.transactions.length > 0 && (
-            <div className="mt-5 pt-4 border-t border-white/15">
-              <p className="text-xs font-semibold text-[#DDF5E9] mb-2.5">
-                Payments Linked to This Active Trip
-              </p>
-              <div className="divide-y divide-white/10">
-                {activeTripSummary.transactions.map((tx) => (
-                  <div
-                    key={tx.id}
-                    className="py-2 flex items-center justify-between text-xs"
-                  >
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-[#43C99A]" />
-                      <span className="font-semibold text-white">
-                        {tx.sender_name || 'Passenger'}
-                      </span>
-                      <span aria-hidden="true" className="text-white/40">
-                        ·
-                      </span>
-                      <span className="font-mono text-[#DDF5E9]/80">
-                        {tx.transaction_id || tx.payment_method}
-                      </span>
-                      <span aria-hidden="true" className="text-white/40">
-                        ·
-                      </span>
-                      <span className="font-mono text-[#DDF5E9]/80">
-                        {tx.transaction_time.slice(0, 5)}
-                      </span>
-                    </div>
-                    <span className="font-mono font-bold tabular-nums text-[#43C99A]">
-                      +{formatMinorUnits(tx.amount_minor_units, currency)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-      ) : (
-        <section className="rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] p-6 sm:p-7">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2 text-xs text-[#16866A] dark:text-[#43C99A] font-semibold">
-                <MapPin className="w-3.5 h-3.5" />
-                <span>Ready for Next Passenger Trip</span>
-                <span aria-hidden="true">·</span>
-                <span>Sender 127 Listener Active</span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#172B25] dark:text-[#EDF6F0] text-balance">
-                Start a Trip to Track Incoming Telebirr Fares
-              </h1>
-              <p className="text-sm text-[#75847D] dark:text-[#94A8A0] max-w-2xl">
-                Record your starting location (such as 4 Kilo or Bole) and automatically link incoming
-                Telebirr 127 SMS notifications to calculate exact earnings per trip.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 shrink-0">
-              <button
-                type="button"
-                onClick={onOpenSmsSimulator}
-                className="min-h-[44px] px-4 py-2.5 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831] text-xs font-semibold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-2 hover:border-[#16866A] transition-colors whitespace-nowrap shrink-0"
-              >
-                <MessageSquarePlus className="w-4 h-4 text-[#16866A] dark:text-[#43C99A]" />
-                Test Incoming 127 SMS
-              </button>
-              <button
-                type="button"
-                onClick={() => onOpenCashModal(null)}
-                className="min-h-[44px] px-4 py-2.5 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831] text-xs font-semibold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-2 hover:border-[#16866A] transition-colors whitespace-nowrap shrink-0"
-              >
-                <Banknote className="w-4 h-4 text-[#16866A] dark:text-[#43C99A]" />
-                Record Cash
-              </button>
-              <button
-                type="button"
-                onClick={() => onOpenTripModal('START')}
-                className="min-h-[48px] px-6 py-3 rounded-xl bg-[#16866A] dark:bg-[#43C99A] text-white dark:text-[#101A17] text-sm font-bold flex items-center gap-2 hover:opacity-95 transition-opacity whitespace-nowrap shrink-0"
-              >
-                <Navigation className="w-4 h-4" />
-                Start Trip
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* 6 Core Dashboard Metrics (Section 9) */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-bold text-[#172B25] dark:text-[#EDF6F0]">
-            Today&apos;s Earnings & Trip Summary
-          </h2>
-          <span className="text-xs text-[#75847D] dark:text-[#94A8A0] font-mono tabular-nums">
-            21/10/2026 · Offline SQLite Ledger
+        <div className="mt-1.5 flex items-baseline">
+          <span className="text-[42px] font-extrabold tracking-tight leading-none">
+            {currency} {totalMajorWhole}
+          </span>
+          <span className="text-2xl font-bold text-[#B4C6EE] ml-0.5">
+            .{totalCents}
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* 1. Today's Total Collections */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831]">
-            <p className="text-xs font-medium text-[#75847D] dark:text-[#94A8A0]">
-              01. Today&apos;s Net Collections
-            </p>
-            <p className="text-2xl font-bold font-mono tabular-nums text-[#172B25] dark:text-[#EDF6F0] mt-2">
-              {formatMinorUnits(todayReport.combinedNetIncomeMinorUnits, currency)}
-            </p>
-            <div className="flex items-center gap-2 text-xs text-[#75847D] dark:text-[#94A8A0] mt-2">
-              <span>
-                Telebirr: {formatMinorUnits(todayReport.netTelebirrIncomingMinorUnits, currency)}
-              </span>
-              <span aria-hidden="true">·</span>
-              <span>
-                Cash: {formatMinorUnits(todayReport.manualCashIncomingMinorUnits, currency)}
-              </span>
-            </div>
-          </div>
+        {/* Two-Tone Split Progress Bar (Telebirr Sky Blue vs Cash Amber) */}
+        <div className="mt-5 flex items-center gap-1.5 h-2.5 w-full">
+          <div
+            style={{ width: `${telebirrPct}%` }}
+            className="h-full bg-[#5CA4F8] rounded-full transition-all duration-300"
+          />
+          <div
+            style={{ width: `${100 - telebirrPct}%` }}
+            className="h-full bg-[#F5BA36] rounded-full transition-all duration-300"
+          />
+        </div>
 
-          {/* 2. Number of Incoming Payments */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831]">
-            <p className="text-xs font-medium text-[#75847D] dark:text-[#94A8A0]">
-              02. Incoming Payments Today
-            </p>
-            <p className="text-2xl font-bold font-mono tabular-nums text-[#172B25] dark:text-[#EDF6F0] mt-2">
-              {todayReport.incomingPaymentCount} payments
-            </p>
-            <div className="flex items-center gap-2 text-xs text-[#75847D] dark:text-[#94A8A0] mt-2">
-              <span>Verified Sender 127</span>
-              <span aria-hidden="true">·</span>
-              <span>Excludes outgoing & promos</span>
-            </div>
-          </div>
+        {/* Telebirr vs Cash Legend */}
+        <div className="mt-2.5 flex items-center justify-between text-sm">
+          <span className="text-[#5CA4F8] font-medium">
+            Telebirr {formatWholeNumberWithCommas(telebirrMinor)}
+          </span>
+          <span className="text-[#F5BA36] font-semibold">
+            Cash {formatWholeNumberWithCommas(cashMinor)}
+          </span>
+        </div>
 
-          {/* 3. Completed Trips */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831]">
-            <p className="text-xs font-medium text-[#75847D] dark:text-[#94A8A0]">
-              03. Completed Trips Today
-            </p>
-            <p className="text-2xl font-bold font-mono tabular-nums text-[#172B25] dark:text-[#EDF6F0] mt-2">
-              {todayReport.completedTripsCount} trips
-            </p>
-            <div className="flex items-center gap-2 text-xs text-[#75847D] dark:text-[#94A8A0] mt-2">
-              <span>{activeTrip ? '1 trip currently active' : 'No trip currently active'}</span>
-            </div>
-          </div>
-
-          {/* 4. Total Payments Associated With Trips */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831]">
-            <p className="text-xs font-medium text-[#75847D] dark:text-[#94A8A0]">
-              04. Trip-Associated Payments
-            </p>
-            <p className="text-2xl font-bold font-mono tabular-nums text-[#22A06B] dark:text-[#43C99A] mt-2">
-              {formatMinorUnits(todayReport.assignedPaymentsMinorUnits, currency)}
-            </p>
-            <div className="flex items-center gap-2 text-xs text-[#75847D] dark:text-[#94A8A0] mt-2">
-              <span>Linked to active or completed trips</span>
-            </div>
-          </div>
-
-          {/* 5. Unassigned Payment Total */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831]">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-[#75847D] dark:text-[#94A8A0]">
-                05. Unassigned Payment Total
-              </p>
-              {todayReport.unassignedPaymentCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => onNavigate('transactions')}
-                  className="text-xs font-semibold text-[#16866A] dark:text-[#43C99A] hover:underline"
-                >
-                  Assign ({todayReport.unassignedPaymentCount})
-                </button>
-              )}
-            </div>
-            <p className="text-2xl font-bold font-mono tabular-nums text-[#E9A23B] mt-2">
-              {formatMinorUnits(todayReport.unassignedPaymentsMinorUnits, currency)}
-            </p>
-            <div className="flex items-center gap-2 text-xs text-[#75847D] dark:text-[#94A8A0] mt-2">
-              <span>Received outside active trips · Never discarded</span>
-            </div>
-          </div>
-
-          {/* 6. Average Income per Completed Trip */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831]">
-            <p className="text-xs font-medium text-[#75847D] dark:text-[#94A8A0]">
-              06. Average Income per Trip
-            </p>
-            <p className="text-2xl font-bold font-mono tabular-nums text-[#172B25] dark:text-[#EDF6F0] mt-2">
-              {formatMinorUnits(
-                todayReport.averageIncomePerCompletedTripMinorUnits,
-                currency
-              )}
-            </p>
-            <div className="flex items-center gap-2 text-xs text-[#75847D] dark:text-[#94A8A0] mt-2">
-              <span>Across {todayReport.completedTripsCount} completed trips today</span>
-            </div>
-          </div>
+        {/* 6-Column Intraday Bar Chart */}
+        <div className="mt-5 grid grid-cols-6 gap-2.5 items-end h-16 pt-2">
+          {intradayBars.map((heightPx, idx) => {
+            const isLast = idx === intradayBars.length - 1;
+            return (
+              <div
+                key={idx}
+                style={{ height: `${heightPx}px` }}
+                className={`w-full rounded-[10px] transition-all ${
+                  isLast ? 'bg-[#F5BA36]' : 'bg-[#2B4692]'
+                }`}
+              />
+            );
+          })}
         </div>
       </section>
 
-      {/* Unassigned Payments Quick Assignment Bar (if any exist) */}
-      {unassignedIncomingTransactions.length > 0 && (
-        <section className="rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] p-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#E3EAE5] dark:border-[#253831]">
+      {/* 2-Column KPI Cards: Payments & Trips done */}
+      <div className="grid grid-cols-2 gap-3.5">
+        <button
+          type="button"
+          onClick={() => onNavigate('transactions')}
+          className={`rounded-[24px] p-5 text-left transition-transform active:scale-[0.99] cursor-pointer ${
+            isDark
+              ? 'bg-[#141B2D]'
+              : 'bg-white border border-slate-200/70 shadow-xs'
+          }`}
+        >
+          <p className="text-sm font-medium text-[#8E9BAE]">Payments</p>
+          <p
+            className={`text-[34px] font-extrabold leading-tight mt-1 ${
+              isDark ? 'text-white' : 'text-[#0F172A]'
+            }`}
+          >
+            {todayReport.incomingPaymentCount}
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onNavigate('trips')}
+          className={`rounded-[24px] p-5 text-left transition-transform active:scale-[0.99] cursor-pointer ${
+            isDark
+              ? 'bg-[#141B2D]'
+              : 'bg-white border border-slate-200/70 shadow-xs'
+          }`}
+        >
+          <p className="text-sm font-medium text-[#8E9BAE]">Trips done</p>
+          <p
+            className={`text-[34px] font-extrabold leading-tight mt-1 ${
+              isDark ? 'text-white' : 'text-[#0F172A]'
+            }`}
+          >
+            {todayReport.completedTripsCount}
+          </p>
+        </button>
+      </div>
+
+      {/* Unassigned Payments Callout Card (Matches Page 1 & Page 6) */}
+      {unassignedTransactions.length > 0 && (
+        <div
+          onClick={() => onNavigate('transactions', 'UNASSIGNED')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              onNavigate('transactions', 'UNASSIGNED');
+            }
+          }}
+          className={`rounded-[24px] p-4 border-[1.5px] flex items-center justify-between gap-3.5 cursor-pointer transition-transform active:scale-[0.99] ${
+            isDark
+              ? 'bg-[#272118] border-[#8B6520]'
+              : 'bg-[#FEF7E6] border-[#F3D078]'
+          }`}
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-[#F5BA36] text-[#111827] font-extrabold text-lg flex items-center justify-center shrink-0">
+              {unassignedTransactions.length}
+            </div>
             <div>
-              <h3 className="text-sm font-bold text-[#172B25] dark:text-[#EDF6F0]">
-                Unassigned Telebirr Payments Awaiting Trip Link ({unassignedIncomingTransactions.length})
-              </h3>
-              <p className="text-xs text-[#75847D] dark:text-[#94A8A0]">
-                Payments received between trips are preserved safely. Link them to a trip below:
+              <p
+                className={`text-base font-bold leading-snug ${
+                  isDark ? 'text-white' : 'text-[#0F172A]'
+                }`}
+              >
+                Payments need a trip
+              </p>
+              <p
+                className={`text-sm ${
+                  isDark ? 'text-[#B8B2A6]' : 'text-[#64748B]'
+                }`}
+              >
+                {currency} {formatWholeNumberWithCommas(unassignedTotalMinor)} unassigned
               </p>
             </div>
           </div>
 
-          <div className="divide-y divide-[#E3EAE5] dark:divide-[#253831] mt-2">
-            {unassignedIncomingTransactions.slice(0, 3).map((tx) => (
+          <span
+            className={`text-sm font-bold pr-1 ${
+              isDark ? 'text-[#F5BA36]' : 'text-[#9A6700]'
+            }`}
+          >
+            Review
+          </span>
+        </div>
+      )}
+
+      {/* Recent Payments Section (Matches Page 1 & Page 6) */}
+      <section className="pt-2">
+        <div className="flex items-center justify-between mb-3">
+          <h2
+            className={`text-xl font-extrabold tracking-tight ${
+              isDark ? 'text-white' : 'text-[#0F172A]'
+            }`}
+          >
+            Recent payments
+          </h2>
+          <button
+            type="button"
+            onClick={() => onNavigate('transactions')}
+            className="text-sm font-medium text-[#8E9BAE] hover:underline cursor-pointer"
+          >
+            See all
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {featuredRecent.map((tx) => {
+            const isCash = tx.payment_method === PaymentMethod.CASH;
+            const amountMajor = (tx.amount_minor_units / 100).toFixed(2);
+            const routeText = getTripRouteShort(tx.trip_id);
+            const time12 = formatTime12Hour(tx.transaction_time);
+
+            return (
               <div
                 key={tx.id}
-                className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                onClick={() => onNavigate('transactions')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') onNavigate('transactions');
+                }}
+                className="flex items-center justify-between gap-3 py-1 cursor-pointer"
               >
-                <div>
-                  <div className="flex items-center gap-2 text-sm font-semibold text-[#172B25] dark:text-[#EDF6F0]">
-                    <span className="font-mono font-bold text-[#16866A] dark:text-[#43C99A]">
-                      {formatMinorUnits(tx.amount_minor_units, currency)}
-                    </span>
-                    <span aria-hidden="true">·</span>
-                    <span>{tx.sender_name || 'Unknown Sender'}</span>
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div
+                    className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${
+                      isCash
+                        ? isDark
+                          ? 'bg-[#1D2436] text-[#F5BA36]'
+                          : 'bg-[#F3F4F6] text-[#B45309]'
+                        : isDark
+                        ? 'bg-[#16274C] text-[#5CA4F8]'
+                        : 'bg-[#E8F1FF] text-[#2563EB]'
+                    }`}
+                  >
+                    <ArrowDown className="w-5 h-5 stroke-[2.4]" />
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-[#75847D] dark:text-[#94A8A0] mt-0.5 font-mono">
-                    <span>TX: {tx.transaction_id || 'NO_ID'}</span>
-                    <span aria-hidden="true">·</span>
-                    <span>
-                      {tx.transaction_date} {tx.transaction_time.slice(0, 5)}
-                    </span>
+
+                  <div className="min-w-0">
+                    <p
+                      className={`text-base font-bold truncate ${
+                        isDark ? 'text-white' : 'text-[#0F172A]'
+                      }`}
+                    >
+                      {isCash ? 'Cash' : tx.sender_name}
+                    </p>
+                    <p className="text-xs text-[#8E9BAE] truncate mt-0.5">
+                      {isCash ? 'Manual' : 'Telebirr'} · {time12} · {routeText}
+                    </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Link2 className="w-4 h-4 text-[#75847D] shrink-0" />
-                  <select
-                    value={tx.trip_id || ''}
-                    onChange={(e) =>
-                      assignTransactionToTrip(tx.id, e.target.value || null)
-                    }
-                    className="h-9 px-3 rounded-lg bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831] text-xs text-[#172B25] dark:text-[#EDF6F0] focus:outline-none focus:border-[#16866A]"
-                  >
-                    <option value="">Select trip to assign...</option>
-                    {trips
-                      .filter((t) => t.status !== TripStatus.CANCELLED)
-                      .map((trip) => (
-                        <option key={trip.id} value={trip.id}>
-                          {trip.status === TripStatus.ACTIVE ? '[ACTIVE] ' : ''}
-                          {trip.start_location_name.replace(', Addis Ababa', '')} →{' '}
-                          {(trip.end_location_name || 'Active').replace(', Addis Ababa', '')}
-                        </option>
-                      ))}
-                  </select>
-                </div>
+                <span
+                  className={`text-lg font-extrabold tabular-nums shrink-0 ${
+                    isDark ? 'text-white' : 'text-[#0F172A]'
+                  }`}
+                >
+                  +{amountMajor}
+                </span>
               </div>
-            ))}
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Active Trip Live Map & Quick Testbench Drawer Card */}
+      {activeTrip && activeTripSummary && (
+        <section
+          className={`mt-4 rounded-[24px] p-4 border ${
+            isDark
+              ? 'bg-[#141B2D] border-[#5CA4F8]/40'
+              : 'bg-white border-[#5CA4F8]/60 shadow-xs'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full bg-[#5CA4F8] text-[#09152B] text-[11px] font-extrabold">
+                ● ACTIVE TRIP
+              </span>
+              <span
+                className={`text-sm font-bold ${
+                  isDark ? 'text-white' : 'text-[#0F172A]'
+                }`}
+              >
+                {activeTrip.start_location_name.replace(', Addis Ababa', '')} → In progress
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => onOpenTripModal('END')}
+                className="px-3 py-1.5 rounded-full bg-[#2CD48D] text-[#052115] text-xs font-extrabold flex items-center gap-1 cursor-pointer"
+              >
+                <StopCircle className="w-3.5 h-3.5" />
+                End
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLiveMap((v) => !v)}
+                className={`p-1.5 rounded-full text-xs font-semibold flex items-center gap-1 cursor-pointer ${
+                  isDark ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-700'
+                }`}
+                title="Toggle Live Trip Map"
+              >
+                <Navigation className="w-3.5 h-3.5 text-[#2CD48D]" />
+                {showLiveMap ? (
+                  <ChevronUp className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronDown className="w-3.5 h-3.5" />
+                )}
+              </button>
+            </div>
           </div>
+
+          {showLiveMap && (
+            <div className="mt-3">
+              <LiveTripMap
+                trip={activeTrip}
+                associatedTransactions={activeTripSummary.transactions}
+                currency={currency}
+                compact
+              />
+            </div>
+          )}
         </section>
       )}
 
-      {/* 2-Column Split: Recent Transactions & Recent Trips (Section 9) */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-        {/* Recent Transactions (7 cols) */}
-        <div className="lg:col-span-7 rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] p-6 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-4 border-b border-[#E3EAE5] dark:border-[#253831]">
-              <div>
-                <h2 className="text-base font-bold text-[#172B25] dark:text-[#EDF6F0]">
-                  Recent Telebirr & Cash Transactions
-                </h2>
-                <p className="text-xs text-[#75847D] dark:text-[#94A8A0] mt-0.5">
-                  Automatically parsed from sender ID 127 and local cash records
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => onNavigate('transactions')}
-                className="min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-semibold text-[#16866A] dark:text-[#43C99A] hover:bg-[#F5F7F5] dark:hover:bg-[#101A17] flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
-              >
-                View All
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="divide-y divide-[#E3EAE5] dark:divide-[#253831]">
-              {recentTransactions.map((tx) => {
-                const isIncoming = isPositiveIncomingTransaction(tx);
-                const isOutgoing = isOutgoingTransaction(tx);
-                const linkedTrip = tx.trip_id
-                  ? trips.find((t) => t.id === tx.trip_id)
-                  : null;
-
-                return (
-                  <div
-                    key={tx.id}
-                    className="py-3.5 flex items-center justify-between gap-4"
-                  >
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
-                          isIncoming
-                            ? 'bg-[#DDF5E9] dark:bg-[#1D352D] text-[#16866A] dark:text-[#43C99A]'
-                            : isOutgoing
-                            ? 'bg-[#F5F7F5] dark:bg-[#101A17] text-[#75847D]'
-                            : 'bg-[#E9A23B]/15 text-[#E9A23B]'
-                        }`}
-                      >
-                        {isIncoming ? (
-                          <ArrowDownLeft className="w-4 h-4" />
-                        ) : isOutgoing ? (
-                          <ArrowUpRight className="w-4 h-4" />
-                        ) : (
-                          <RotateCcw className="w-4 h-4" />
-                        )}
-                      </div>
-
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-[#172B25] dark:text-[#EDF6F0] truncate">
-                          {tx.sender_name || 'Unknown Counterparty'}
-                        </p>
-                        {/* Clean unboxed metadata with typographic separators */}
-                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-[#75847D] dark:text-[#94A8A0] mt-0.5">
-                          <span className="font-mono">
-                            {tx.transaction_id || tx.payment_method}
-                          </span>
-                          <span aria-hidden="true">·</span>
-                          <span className="font-mono tabular-nums">
-                            {tx.transaction_time.slice(0, 5)}
-                          </span>
-                          <span aria-hidden="true">·</span>
-                          <span className="truncate">
-                            {linkedTrip
-                              ? `${linkedTrip.start_location_name.replace(', Addis Ababa', '')} → ${(linkedTrip.end_location_name || 'Active').replace(', Addis Ababa', '')}`
-                              : isIncoming
-                              ? 'Unassigned'
-                              : tx.transaction_type}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <p
-                        className={`text-sm font-bold font-mono tabular-nums ${
-                          isIncoming && tx.transaction_status === TransactionStatus.VALID
-                            ? 'text-[#22A06B] dark:text-[#43C99A]'
-                            : isOutgoing
-                            ? 'text-[#75847D] dark:text-[#94A8A0]'
-                            : 'text-[#D9534F]'
-                        }`}
-                      >
-                        {isIncoming ? '+' : '-'}
-                        {formatMinorUnits(tx.amount_minor_units, currency)}
-                      </p>
-                      <p className="text-[11px] text-[#75847D] dark:text-[#94A8A0] mt-0.5">
-                        {tx.payment_method === PaymentMethod.CASH
-                          ? 'Manual Cash'
-                          : `SMS ${tx.sms_sender}`}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Completed Trips (5 cols) */}
-        <div className="lg:col-span-5 rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] p-6 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-4 border-b border-[#E3EAE5] dark:border-[#253831]">
-              <div>
-                <h2 className="text-base font-bold text-[#172B25] dark:text-[#EDF6F0]">
-                  Recent Trips
-                </h2>
-                <p className="text-xs text-[#75847D] dark:text-[#94A8A0] mt-0.5">
-                  Per-trip passenger collections and durations
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => onNavigate('trips')}
-                className="min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-semibold text-[#16866A] dark:text-[#43C99A] hover:bg-[#F5F7F5] dark:hover:bg-[#101A17] flex items-center gap-1 transition-colors whitespace-nowrap shrink-0"
-              >
-                All Trips
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <div className="divide-y divide-[#E3EAE5] dark:divide-[#253831]">
-              {recentCompletedTrips.map((trip) => {
-                const summary = calculateTripTotalMinorUnits(trip.id, transactions);
-                return (
-                  <div key={trip.id} className="py-4 space-y-1.5">
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="text-sm font-semibold text-[#172B25] dark:text-[#EDF6F0]">
-                        {trip.start_location_name.replace(', Addis Ababa', '')} →{' '}
-                        {(trip.end_location_name || 'Completed').replace(', Addis Ababa', '')}
-                      </p>
-                      <span className="text-sm font-bold font-mono tabular-nums text-[#16866A] dark:text-[#43C99A] shrink-0">
-                        {formatMinorUnits(summary.totalMinorUnits, currency)}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-[#75847D] dark:text-[#94A8A0]">
-                      <span className="font-mono tabular-nums">
-                        {summary.paymentCount} {summary.paymentCount === 1 ? 'payment' : 'payments'}
-                      </span>
-                      <span aria-hidden="true">·</span>
-                      <span className="font-mono tabular-nums">
-                        Duration: {formatDurationSeconds(trip.duration)}
-                      </span>
-                      <span aria-hidden="true">·</span>
-                      <span className="font-mono tabular-nums">
-                        {formatIsoToShortTime(trip.start_time)}–{formatIsoToShortTime(trip.end_time)}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-[#E3EAE5] dark:border-[#253831] flex items-center justify-between text-xs text-[#75847D] dark:text-[#94A8A0]">
-            <span>Example: 4 Kilo → Piassa (3 payments)</span>
-            <span className="font-mono font-semibold text-[#172B25] dark:text-[#EDF6F0]">
-              ETB 100.00
-            </span>
-          </div>
-        </div>
-      </section>
+      {/* Quick Telebirr 127 SMS Testbench Trigger Strip */}
+      <div className="pt-2">
+        <button
+          type="button"
+          onClick={onOpenSmsSimulator}
+          className={`w-full rounded-2xl p-3.5 flex items-center justify-between text-xs font-semibold border cursor-pointer transition-colors ${
+            isDark
+              ? 'bg-[#141B2D]/70 border-white/5 text-[#8E9BAE] hover:text-white'
+              : 'bg-white border-slate-200/80 text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <MessageSquarePlus className="w-4 h-4 text-[#2CD48D]" />
+            <span>Telebirr Sender 127 SMS Testbench (Simulate Incoming SMS)</span>
+          </span>
+          <span className="text-[#2CD48D] font-bold">Open ›</span>
+        </button>
+      </div>
     </div>
   );
 };

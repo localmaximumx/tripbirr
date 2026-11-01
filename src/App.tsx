@@ -8,15 +8,13 @@ import {
   BarChart3,
   Check,
   Home,
-  ListOrdered,
   MessageSquarePlus,
   Moon,
-  Navigation,
+  Play,
   Route,
-  Settings,
-  Smartphone,
   Sun,
   User,
+  Wallet,
   X,
 } from 'lucide-react';
 import { useTripBirrStore } from './store/useTripBirrStore';
@@ -30,16 +28,13 @@ import { TripActionModal } from './components/TripActionModal';
 import { ManualCashModal } from './components/ManualCashModal';
 import { SmsSimulatorDrawer } from './components/SmsSimulatorDrawer';
 import { DriverProfileModal } from './components/DriverProfileModal';
-import { TripBirrLogo } from './components/TripBirrLogo';
 import { formatMinorUnits } from './utils/formatters';
 
 type NavSection = 'home' | 'trips' | 'transactions' | 'reports' | 'settings';
 
 export default function App() {
   const {
-    driverProfile,
     trips,
-    transactions,
     settings,
     latestAlert,
     pendingAssociationPrompt,
@@ -52,6 +47,7 @@ export default function App() {
   } = useTripBirrStore();
 
   const [activeTab, setActiveTab] = useState<NavSection>('home');
+  const [txFilterHint, setTxFilterHint] = useState<string | null>(null);
   const [tripModalMode, setTripModalMode] = useState<'START' | 'END' | null>(null);
   const [cashModalTripId, setCashModalTripId] = useState<string | null | undefined>(
     undefined
@@ -61,9 +57,6 @@ export default function App() {
   const [isDriverProfileOpen, setIsDriverProfileOpen] = useState(false);
 
   const activeTrip = trips.find((t) => t.status === TripStatus.ACTIVE) || null;
-  const latestBalanceTx = transactions.find(
-    (tx) => tx.account_balance_minor_units !== null
-  );
 
   // Keep <html class="dark"> synchronized with settings.theme
   useEffect(() => {
@@ -80,6 +73,11 @@ export default function App() {
     setIsCashModalOpen(true);
   };
 
+  const handleNavigate = (tab: NavSection, filterHint?: string) => {
+    setActiveTab(tab);
+    setTxFilterHint(filterHint || null);
+  };
+
   const navItems: {
     id: NavSection;
     label: string;
@@ -87,146 +85,28 @@ export default function App() {
   }[] = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'trips', label: 'Trips', icon: Route },
-    { id: 'transactions', label: 'Transactions', icon: ListOrdered },
+    { id: 'transactions', label: 'Transactions', icon: Wallet },
     { id: 'reports', label: 'Reports', icon: BarChart3 },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'settings', label: 'Profile', icon: User },
   ];
 
-  const driverInitials = driverProfile.full_name
-    .split(' ')
-    .map((p) => p[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-
   return (
-    <div className="min-h-screen flex flex-col bg-[#F5F7F5] dark:bg-[#101A17] text-[#172B25] dark:text-[#EDF6F0] pb-20 md:pb-12">
-      {/* Strict 3-Zone Top Bar Contract */}
-      <header className="sticky top-0 z-30 bg-white/95 dark:bg-[#192722]/95 backdrop-blur-md border-b border-[#E3EAE5] dark:border-[#253831]">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-8 px-4 sm:px-6 h-16">
-          {/* Zone 1: Brand Icon + Wordmark */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('home')}
-            className="flex items-center gap-2.5 text-lg font-bold tracking-tight text-[#123C35] dark:text-[#43C99A] whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            <TripBirrLogo size={34} />
-            <span>{settings.app_name}</span>
-          </button>
-
-          {/* Zone 2: 5 clean single-line text navigation links */}
-          <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-[#75847D] dark:text-[#94A8A0]">
-            {navItems.map((item) => {
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setActiveTab(item.id)}
-                  className={`py-1 transition-colors whitespace-nowrap shrink-0 border-b-2 ${
-                    isActive
-                      ? 'text-[#172B25] dark:text-[#EDF6F0] font-semibold border-[#16866A] dark:border-[#43C99A]'
-                      : 'border-transparent hover:text-[#172B25] dark:hover:text-[#EDF6F0]'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* Zone 3: 1 primary action */}
-          <div className="flex items-center shrink-0">
-            <button
-              type="button"
-              onClick={() => setTripModalMode(activeTrip ? 'END' : 'START')}
-              className={`min-h-[40px] px-4 py-2 text-xs font-semibold rounded-xl transition-opacity hover:opacity-95 whitespace-nowrap shrink-0 ${
-                activeTrip
-                  ? 'bg-[#123C35] text-white dark:bg-[#43C99A] dark:text-[#101A17]'
-                  : 'bg-[#16866A] text-white dark:bg-[#43C99A] dark:text-[#101A17]'
-              }`}
-            >
-              {activeTrip ? 'End Active Trip' : 'Start Trip'}
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Android Driver Identity & Workspace Utility Bar (Below Top Bar) */}
-      <div className="bg-[#F5F7F5] dark:bg-[#101A17] border-b border-[#E3EAE5] dark:border-[#253831]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
-          {/* Driver Profile Trigger */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              type="button"
-              onClick={() => setIsDriverProfileOpen(true)}
-              className="min-h-[36px] pl-1.5 pr-3 py-1 rounded-xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] hover:border-[#16866A] flex items-center gap-2 transition-colors cursor-pointer"
-            >
-              <span className="w-6 h-6 rounded-lg bg-[#123C35] text-[#43C99A] font-bold text-[11px] flex items-center justify-center">
-                {driverInitials}
-              </span>
-              <span className="font-bold text-[#172B25] dark:text-[#EDF6F0]">
-                {driverProfile.full_name}
-              </span>
-              <span aria-hidden="true" className="text-[#75847D]">
-                ·
-              </span>
-              <span className="font-mono text-[#75847D] dark:text-[#94A8A0]">
-                {driverProfile.vehicle_plate}
-              </span>
-            </button>
-
-            {latestBalanceTx?.account_balance_minor_units !== null &&
-              latestBalanceTx?.account_balance_minor_units !== undefined && (
-                <span className="text-[#75847D] dark:text-[#94A8A0] font-mono hidden sm:inline">
-                  E-Money Bal:{' '}
-                  <strong className="text-[#172B25] dark:text-[#EDF6F0]">
-                    {formatMinorUnits(
-                      latestBalanceTx.account_balance_minor_units,
-                      settings.currency_display
-                    )}
-                  </strong>
-                </span>
-              )}
-
-            {activeTrip && (
-              <span className="font-semibold text-[#16866A] dark:text-[#43C99A] flex items-center gap-1">
-                <Navigation className="w-3 h-3" />
-                Active: {activeTrip.start_location_name.replace(', Addis Ababa', '')}
-              </span>
-            )}
-          </div>
-
-          {/* Right Utility Actions */}
+    <div className="min-h-screen bg-[#EEF2F7] dark:bg-[#060911] text-[#0F172A] dark:text-[#F8FAFC] flex justify-center">
+      {/* Mobile App Frame Container */}
+      <div className="w-full max-w-[430px] min-h-screen bg-[#F7F9FC] dark:bg-[#0B0F1A] relative flex flex-col shadow-2xl border-x border-[#E2E8F0]/70 dark:border-[#1E2638]/60">
+        {/* Subtle Mobile Status / Quick Test Bar */}
+        <div className="px-5 pt-3 pb-1 flex items-center justify-between text-[11px] font-semibold text-[#64748B] dark:text-[#8E9BAE]">
+          <span className="font-mono tracking-tight">9:41 · Offline SQLite</span>
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setIsDriverProfileOpen(true)}
-              className="min-h-[34px] px-3 py-1 rounded-lg bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] font-semibold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-1.5 hover:border-[#16866A] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-            >
-              <User className="w-3.5 h-3.5 text-[#16866A] dark:text-[#43C99A]" />
-              Driver Profile
-            </button>
-
-            <button
-              type="button"
               onClick={() => setIsSmsSimulatorOpen(true)}
-              className="min-h-[34px] px-3 py-1 rounded-lg bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] font-semibold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-1.5 hover:border-[#16866A] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="px-2.5 py-1 rounded-full bg-white dark:bg-[#131926] border border-[#E2E8F0] dark:border-[#232D42] text-[#0F172A] dark:text-[#F8FAFC] flex items-center gap-1 hover:border-[#2CD48D] transition-colors cursor-pointer"
+              title="Simulate incoming Telebirr SMS from sender 127"
             >
-              <MessageSquarePlus className="w-3.5 h-3.5 text-[#16866A] dark:text-[#43C99A]" />
-              SMS 127 Testbench
+              <MessageSquarePlus className="w-3 h-3 text-[#159960] dark:text-[#2CD48D]" />
+              <span>SMS 127</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('settings')}
-              className="min-h-[34px] px-3 py-1 rounded-lg bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] font-medium text-[#75847D] dark:text-[#94A8A0] hover:text-[#172B25] dark:hover:text-[#EDF6F0] hidden sm:flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-              title="Inspect React Native CLI & Kotlin Android source files"
-            >
-              <Smartphone className="w-3.5 h-3.5 text-[#16866A] dark:text-[#43C99A]" />
-              RN Android Code
-            </button>
-
             <button
               type="button"
               onClick={() =>
@@ -234,41 +114,45 @@ export default function App() {
                   theme: settings.theme === 'dark' ? 'light' : 'dark',
                 })
               }
-              className="min-h-[34px] px-3 py-1 rounded-lg bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] font-medium text-[#75847D] dark:text-[#94A8A0] hover:text-[#172B25] dark:hover:text-[#EDF6F0] flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="p-1.5 rounded-full bg-white dark:bg-[#131926] border border-[#E2E8F0] dark:border-[#232D42] text-[#0F172A] dark:text-[#F8FAFC] hover:border-[#2CD48D] transition-colors cursor-pointer"
               aria-label="Toggle color theme"
             >
               {settings.theme === 'dark' ? (
-                <>
-                  <Sun className="w-3.5 h-3.5 text-[#43C99A]" />
-                  Light
-                </>
+                <Sun className="w-3.5 h-3.5 text-[#2CD48D]" />
               ) : (
-                <>
-                  <Moon className="w-3.5 h-3.5 text-[#123C35]" />
-                  Dark
-                </>
+                <Moon className="w-3.5 h-3.5 text-[#0F172A]" />
               )}
             </button>
           </div>
         </div>
-      </div>
 
-      {/* Non-Intrusive Payment Notification & Active Trip Association Suggestion Banner (Section 6 & 8) */}
-      {(latestAlert || pendingAssociationPrompt) && settings.notification_preview && (
-        <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 pt-4">
-          <div className="rounded-2xl bg-[#123C35] text-white p-4 sm:p-5 border border-[#43C99A]/40 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs text-[#43C99A] font-semibold">
-                <span>Payment received</span>
-                {latestAlert && (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span className="font-mono">Time: {latestAlert.timeFormatted}</span>
-                  </>
+        {/* Non-Intrusive Payment Notification & Active Trip Association Suggestion Banner */}
+        {(latestAlert || pendingAssociationPrompt) && settings.notification_preview && (
+          <div className="px-4 pt-2">
+            <div className="rounded-2xl bg-[#131926] text-white p-4 border border-[#2CD48D]/40 shadow-lg space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs text-[#2CD48D] font-bold">
+                  <span>Telebirr 127 received</span>
+                  {latestAlert && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span className="font-mono">{latestAlert.timeFormatted}</span>
+                    </>
+                  )}
+                </div>
+                {!pendingAssociationPrompt && (
+                  <button
+                    type="button"
+                    onClick={dismissAlert}
+                    className="p-1 rounded-lg bg-white/10 hover:bg-white/20 text-white"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 )}
               </div>
+
               <div className="flex flex-wrap items-baseline gap-2">
-                <span className="text-xl font-bold font-mono tabular-nums text-white">
+                <span className="text-lg font-extrabold font-mono tabular-nums text-white">
                   {pendingAssociationPrompt
                     ? formatMinorUnits(
                         pendingAssociationPrompt.amountMinorUnits,
@@ -276,8 +160,8 @@ export default function App() {
                       )
                     : latestAlert?.amountFormatted}
                 </span>
-                <span className="text-sm text-[#DDF5E9]">
-                  From:{' '}
+                <span className="text-xs text-[#94A3B8]">
+                  From{' '}
                   <strong className="text-white">
                     {pendingAssociationPrompt?.senderName || latestAlert?.senderName}
                   </strong>
@@ -285,104 +169,106 @@ export default function App() {
               </div>
 
               {pendingAssociationPrompt && (
-                <p className="text-xs text-[#DDF5E9]">
-                  Suggested Association: Link this payment to your active trip from{' '}
-                  <span className="font-semibold text-white">
-                    {pendingAssociationPrompt.activeTripStartLocation}
-                  </span>
-                  ?
-                </p>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2.5 shrink-0">
-              {pendingAssociationPrompt ? (
                 <>
-                  <button
-                    type="button"
-                    onClick={() => confirmPendingTripAssociation(false)}
-                    className="min-h-[40px] px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-white transition-colors"
-                  >
-                    Keep Unassigned
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => confirmPendingTripAssociation(true)}
-                    className="min-h-[40px] px-4 py-2 rounded-xl bg-[#43C99A] text-[#101A17] text-xs font-bold flex items-center gap-1.5 hover:opacity-95 transition-opacity"
-                  >
-                    <Check className="w-4 h-4" />
-                    Associate with Active Trip
-                  </button>
+                  <p className="text-xs text-[#CBD5E1]">
+                    Link this payment to active trip from{' '}
+                    <span className="font-bold text-white">
+                      {pendingAssociationPrompt.activeTripStartLocation}
+                    </span>
+                    ?
+                  </p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => confirmPendingTripAssociation(false)}
+                      className="flex-1 min-h-[36px] px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-white transition-colors"
+                    >
+                      Keep Unassigned
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => confirmPendingTripAssociation(true)}
+                      className="flex-1 min-h-[36px] px-3 py-1.5 rounded-xl bg-[#2CD48D] text-[#052115] text-xs font-extrabold flex items-center justify-center gap-1 hover:opacity-95 transition-opacity"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      Link to Trip
+                    </button>
+                  </div>
                 </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={dismissAlert}
-                  className="min-h-[40px] px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-white flex items-center gap-1"
-                >
-                  <X className="w-4 h-4" />
-                  Dismiss
-                </button>
               )}
             </div>
           </div>
+        )}
+
+        {/* Main Mobile Scrollable Content */}
+        <main className="flex-1 px-4 pt-3 pb-36">
+          {activeTab === 'home' && (
+            <HomeScreen
+              onNavigate={handleNavigate}
+              onOpenTripModal={(mode) => setTripModalMode(mode)}
+              onOpenCashModal={handleOpenCashModal}
+              onOpenSmsSimulator={() => setIsSmsSimulatorOpen(true)}
+            />
+          )}
+          {activeTab === 'trips' && (
+            <TripsScreen
+              onOpenTripModal={(mode) => setTripModalMode(mode)}
+              onOpenCashModal={handleOpenCashModal}
+            />
+          )}
+          {activeTab === 'transactions' && (
+            <TransactionsScreen
+              onOpenSmsSimulator={() => setIsSmsSimulatorOpen(true)}
+              onOpenCashModal={() => handleOpenCashModal(null)}
+              initialFilterHint={txFilterHint}
+            />
+          )}
+          {activeTab === 'reports' && <ReportsScreen />}
+          {activeTab === 'settings' && (
+            <SettingsScreen
+              onOpenDriverProfile={() => setIsDriverProfileOpen(true)}
+              onOpenSmsSimulator={() => setIsSmsSimulatorOpen(true)}
+            />
+          )}
+        </main>
+
+        {/* Floating "▶ Start trip" Button (Matches PDF Pages 1–6) */}
+        <div className="fixed bottom-[82px] left-1/2 -translate-x-1/2 w-full max-w-[430px] px-4 pointer-events-none z-30 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setTripModalMode('START')}
+            className="pointer-events-auto min-h-[50px] px-6 py-3 rounded-full bg-[#2CD48D] hover:bg-[#25be7d] active:scale-[0.98] text-[#052115] font-extrabold text-[15px] shadow-[0_10px_28px_rgba(44,212,141,0.38)] flex items-center gap-2.5 transition-all cursor-pointer"
+          >
+            <Play className="w-4 h-4 fill-[#052115] text-[#052115]" />
+            <span>Start trip</span>
+          </button>
         </div>
-      )}
 
-      {/* Main Content Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {activeTab === 'home' && (
-          <HomeScreen
-            onNavigate={setActiveTab}
-            onOpenTripModal={(mode) => setTripModalMode(mode)}
-            onOpenCashModal={handleOpenCashModal}
-            onOpenSmsSimulator={() => setIsSmsSimulatorOpen(true)}
-          />
-        )}
-        {activeTab === 'trips' && (
-          <TripsScreen
-            onOpenTripModal={(mode) => setTripModalMode(mode)}
-            onOpenCashModal={handleOpenCashModal}
-          />
-        )}
-        {activeTab === 'transactions' && (
-          <TransactionsScreen
-            onOpenSmsSimulator={() => setIsSmsSimulatorOpen(true)}
-            onOpenCashModal={() => handleOpenCashModal(null)}
-          />
-        )}
-        {activeTab === 'reports' && <ReportsScreen />}
-        {activeTab === 'settings' && (
-          <SettingsScreen
-            onOpenDriverProfile={() => setIsDriverProfileOpen(true)}
-          />
-        )}
-      </main>
-
-      {/* Mobile Bottom 5-Section Navigation Bar (Section 15) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#192722]/95 backdrop-blur-md border-t border-[#E3EAE5] dark:border-[#253831] grid grid-cols-5 items-center h-16">
-        {navItems.map((item) => {
-          const IconComponent = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setActiveTab(item.id)}
-              className={`min-h-[44px] flex flex-col items-center justify-center transition-colors ${
-                isActive
-                  ? 'text-[#16866A] dark:text-[#43C99A] font-bold'
-                  : 'text-[#75847D] dark:text-[#94A8A0]'
-              }`}
-            >
-              <IconComponent className="w-5 h-5" />
-              <span className="text-[10px] tracking-tight mt-1 whitespace-nowrap">
-                {item.label}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
+        {/* Fixed 5-Tab Bottom Navigation Bar (Matches PDF Pages 1–6) */}
+        <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40 bg-white/95 dark:bg-[#0D121F]/95 backdrop-blur-md border-t border-[#E2E8F0] dark:border-[#1E2638] grid grid-cols-5 items-center h-[68px] px-1">
+          {navItems.map((item) => {
+            const IconComponent = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleNavigate(item.id)}
+                className={`min-h-[48px] flex flex-col items-center justify-center transition-colors cursor-pointer ${
+                  isActive
+                    ? 'text-[#159960] dark:text-[#2CD48D] font-bold'
+                    : 'text-[#64748B] dark:text-[#8E9BAE] font-medium hover:text-[#0F172A] dark:hover:text-[#F8FAFC]'
+                }`}
+              >
+                <IconComponent className="w-5 h-5 stroke-[2.2]" />
+                <span className="text-[11px] tracking-tight mt-1 whitespace-nowrap">
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
 
       {/* Modals & Drawers */}
       {tripModalMode && (
