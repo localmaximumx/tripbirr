@@ -79,6 +79,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   const isDark = settings.theme === 'dark';
   const currency = settings.currency_display;
+  const lang = (settings.language || 'en') as Language;
   const driverGreetingName = getDriverFirstName(driverProfile);
 
   // Selected transaction for the slide-up Transaction Detail Bottom Sheet
@@ -165,13 +166,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   }, [selectedTx, trips]);
 
   const getTripRouteShort = (tripId: string | null): string => {
-    if (!tripId) return 'Needs trip';
+    if (!tripId) return getTranslation('needs_trip', lang);
     const tr = trips.find((t) => t.id === tripId);
-    if (!tr) return 'Unassigned';
+    if (!tr) return getTranslation('unassigned', lang);
     const startShort = tr.start_location_name.replace(', Addis Ababa', '');
     const endShort = tr.end_location_name
       ? tr.end_location_name.replace(', Addis Ababa', '')
-      : 'In progress';
+      : (lang === 'am' ? 'በሂደት ላይ' : 'In progress');
     return `${startShort} → ${endShort}`;
   };
 
@@ -317,8 +318,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             )}
             <span>
               {isTargetReached
-                ? 'Daily target achieved!'
-                : `Daily target: ${currency} ${formatWholeNumberWithCommas(
+                ? getTranslation('target_achieved', lang)
+                : `${getTranslation('daily_target', lang)}: ${currency} ${formatWholeNumberWithCommas(
                     dailyTargetMinor
                   )}`}
             </span>
@@ -347,10 +348,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         {/* Telebirr vs Cash Legend */}
         <div className="mt-2.5 flex items-center justify-between text-sm">
           <span className="text-[#5CA4F8] font-medium">
-            Telebirr {formatWholeNumberWithCommas(telebirrMinor)}
+            {getTranslation('telebirr', lang)} {formatWholeNumberWithCommas(telebirrMinor)}
           </span>
           <span className="text-[#F5BA36] font-semibold">
-            Cash {formatWholeNumberWithCommas(cashMinor)}
+            {getTranslation('cash', lang)} {formatWholeNumberWithCommas(cashMinor)}
           </span>
         </div>
 
@@ -391,10 +392,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className="px-3 py-1 rounded-full bg-[#5CA4F8] text-[#09152B] text-xs font-extrabold tracking-wide">
-                ● Active
+                ● {getTranslation('active_now', lang)}
               </span>
               <span className="text-xs font-medium text-[#8E9BAE]">
-                Started {formatTime12Hour(activeTrip.start_time.slice(11, 16))}
+                {lang === 'am' ? 'የተጀመረበት፡ ' : 'Started '}
+                {formatTime12Hour(activeTrip.start_time.slice(11, 16))}
               </span>
             </div>
 
@@ -407,7 +409,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               className="px-3.5 py-1.5 rounded-full bg-[#2CD48D] text-[#052115] text-xs font-extrabold flex items-center gap-1 cursor-pointer"
             >
               <StopCircle className="w-3.5 h-3.5" />
-              <span>End trip</span>
+              <span>{getTranslation('end_trip', lang)}</span>
             </button>
           </div>
 
@@ -418,11 +420,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   isDark ? 'text-white' : 'text-[#0F172A]'
                 }`}
               >
-                {activeTrip.start_location_name.replace(', Addis Ababa', '')} → In progress
+                {activeTrip.start_location_name.replace(', Addis Ababa', '')} → {lang === 'am' ? 'በሂደት ላይ' : 'In progress'}
               </h3>
               <p className="text-xs font-medium text-[#8E9BAE] mt-1">
-                {activeTripSummary.paymentCount}{' '}
-                {activeTripSummary.paymentCount === 1 ? 'payment' : 'payments'} · Tap to view live map &amp; trip transactions
+                {activeTripSummary.paymentCount} {getTranslation('payments', lang)} · {lang === 'am' ? 'የቀጥታ ካርታ እና ክፍያዎችን ለማየት ይጫኑ' : 'Tap to view live map & trip transactions'}
               </p>
             </div>
 
@@ -448,7 +449,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               : 'bg-white border border-slate-200/70 shadow-xs'
           }`}
         >
-          <p className="text-sm font-medium text-[#8E9BAE]">Payments</p>
+          <p className="text-sm font-medium text-[#8E9BAE]">{getTranslation('payments', lang)}</p>
           <p
             className={`text-[34px] font-extrabold leading-tight mt-1 ${
               isDark ? 'text-white' : 'text-[#0F172A]'
@@ -467,7 +468,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               : 'bg-white border border-slate-200/70 shadow-xs'
           }`}
         >
-          <p className="text-sm font-medium text-[#8E9BAE]">Trips done</p>
+          <p className="text-sm font-medium text-[#8E9BAE]">{getTranslation('trips_done', lang)}</p>
           <p
             className={`text-[34px] font-extrabold leading-tight mt-1 ${
               isDark ? 'text-white' : 'text-[#0F172A]'
@@ -505,14 +506,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   isDark ? 'text-white' : 'text-[#0F172A]'
                 }`}
               >
-                Payments need a trip
+                {getTranslation('payments_need_trip', lang)}
               </p>
               <p
                 className={`text-sm ${
                   isDark ? 'text-[#B8B2A6]' : 'text-[#64748B]'
                 }`}
               >
-                {currency} {formatWholeNumberWithCommas(unassignedTotalMinor)} unassigned
+                {currency} {formatWholeNumberWithCommas(unassignedTotalMinor)} {getTranslation('unassigned', lang)}
               </p>
             </div>
           </div>
@@ -522,7 +523,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               isDark ? 'text-[#F5BA36]' : 'text-[#9A6700]'
             }`}
           >
-            Review
+            {lang === 'am' ? 'ይመልከቱ' : 'Review'}
           </span>
         </div>
       )}
@@ -535,14 +536,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               isDark ? 'text-white' : 'text-[#0F172A]'
             }`}
           >
-            Recent payments
+            {getTranslation('recent_payments', lang)}
           </h2>
           <button
             type="button"
             onClick={() => onNavigate('transactions')}
             className="text-sm font-medium text-[#8E9BAE] hover:underline cursor-pointer"
           >
-            See all
+            {getTranslation('view_all', lang)}
           </button>
         </div>
 
@@ -553,7 +554,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             const routeText = getTripRouteShort(tx.trip_id);
             const time12 = formatTime12Hour(tx.transaction_time);
             const displayName = isCash
-              ? 'Cash'
+              ? getTranslation('cash', lang)
               : formatPayerName(tx.sender_name, settings.privacy_mask_sender_names);
 
             return (
@@ -594,7 +595,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                       {displayName}
                     </p>
                     <p className="text-xs text-[#8E9BAE] truncate mt-0.5">
-                      {isCash ? 'Manual' : 'Telebirr'} · {time12} · {routeText}
+                      {isCash ? getTranslation('manual', lang) : getTranslation('telebirr', lang)} · {time12} · {routeText}
                     </p>
                   </div>
                 </div>
@@ -668,7 +669,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   <div className="min-w-0">
                     <h3 className="text-lg font-extrabold truncate">
                       {selectedTx.payment_method === PaymentMethod.CASH
-                        ? 'Cash payment'
+                        ? getTranslation('cash_payment', lang)
                         : formatPayerName(
                             selectedTx.sender_name,
                             settings.privacy_mask_sender_names
@@ -676,8 +677,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     </h3>
                     <p className="text-xs text-[#8E9BAE] mt-0.5">
                       {selectedTx.payment_method === PaymentMethod.CASH
-                        ? 'Manual cash'
-                        : `Telebirr${
+                        ? getTranslation('manual', lang)
+                        : `${getTranslation('telebirr', lang)}${
                             selectedTx.sender_phone
                               ? ` · ${formatPhonePrivacy(
                                   selectedTx.sender_phone,
@@ -715,7 +716,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 }`}
               >
                 <div>
-                  <p className="text-[#8E9BAE] font-medium">Payment Time</p>
+                  <p className="text-[#8E9BAE] font-medium">{lang === 'am' ? 'የክፍያ ሰዓት' : 'Payment Time'}</p>
                   <p className="font-bold mt-0.5">
                     {formatTime12Hour(selectedTx.transaction_time)}
                   </p>
@@ -723,8 +724,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 <div>
                   <p className="text-[#8E9BAE] font-medium">
                     {selectedTx.payment_method === PaymentMethod.CASH
-                      ? 'Note'
-                      : 'Transaction ID'}
+                      ? (lang === 'am' ? 'ማስታወሻ' : 'Note')
+                      : (lang === 'am' ? 'የግብይት ቁጥር (ID)' : 'Transaction ID')}
                   </p>
                   <p className="font-mono font-bold mt-0.5 truncate">
                     {selectedTx.payment_method === PaymentMethod.CASH
@@ -746,7 +747,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#5CA4F8] flex items-center gap-1.5">
                       <Route className="w-3.5 h-3.5" />
-                      <span>Trip</span>
+                      <span>{lang === 'am' ? 'ጉዞ' : 'Trip'}</span>
                     </span>
                     <span
                       className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold ${
@@ -758,24 +759,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                       }`}
                     >
                       {selectedTxTrip.status === TripStatus.ACTIVE
-                        ? '● Active'
-                        : 'Completed'}
+                        ? `● ${getTranslation('active_now', lang)}`
+                        : getTranslation('completed', lang)}
                     </span>
                   </div>
 
                   <p className="text-base font-extrabold mt-2">
                     {selectedTxTrip.start_location_name.replace(', Addis Ababa', '')}{' '}
                     →{' '}
-                    {(selectedTxTrip.end_location_name || 'In progress').replace(
+                    {(selectedTxTrip.end_location_name || (lang === 'am' ? 'በሂደት ላይ' : 'In progress')).replace(
                       ', Addis Ababa',
                       ''
                     )}
                   </p>
 
                   <p className="text-xs text-[#8E9BAE] mt-1">
-                    Started {formatTime12Hour(selectedTxTrip.start_time)}
+                    {lang === 'am' ? 'የተጀመረበት፡ ' : 'Started '}{formatTime12Hour(selectedTxTrip.start_time)}
                     {selectedTxTrip.end_time
-                      ? ` · Ended ${formatTime12Hour(selectedTxTrip.end_time)}`
+                      ? ` · ${lang === 'am' ? 'የተጠናቀቀበት፡ ' : 'Ended '}${formatTime12Hour(selectedTxTrip.end_time)}`
                       : ''}
                   </p>
                 </div>
@@ -783,7 +784,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 <div className="space-y-2">
                   <p className="text-xs font-extrabold uppercase tracking-wider text-[#F5BA36] flex items-center gap-1.5">
                     <Route className="w-3.5 h-3.5" />
-                    <span>Needs trip — Tap to assign to active trip</span>
+                    <span>{lang === 'am' ? 'ጉዞ ይፈልጋል — ከሚካሄድ ጉዞ ጋር ለማገናኘት ይጫኑ' : 'Needs trip — Tap to assign to active trip'}</span>
                   </p>
                   <div className="space-y-2 max-h-44 overflow-y-auto">
                     {assignableTrips.map((tr) => {
@@ -791,7 +792,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                         ', Addis Ababa',
                         ''
                       );
-                      const endShort = (tr.end_location_name || 'In progress').replace(
+                      const endShort = (tr.end_location_name || (lang === 'am' ? 'በሂደት ላይ' : 'In progress')).replace(
                         ', Addis Ababa',
                         ''
                       );
@@ -815,11 +816,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                           <div>
                             <p className="font-bold text-sm">{label}</p>
                             <p className="text-[11px] text-[#8E9BAE] mt-0.5">
-                              ● Active · Started {timeStr}
+                              ● {getTranslation('active_now', lang)} · {lang === 'am' ? 'የተጀመረበት፡ ' : 'Started '}{timeStr}
                             </p>
                           </div>
                           <span className="px-2.5 py-1 rounded-lg bg-[#2CD48D] text-[#052115] font-extrabold">
-                            Link
+                            {lang === 'am' ? 'አገናኝ' : 'Link'}
                           </span>
                         </button>
                       );
@@ -836,10 +837,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 >
                   <p className="font-extrabold text-[#F5BA36] flex items-center gap-1.5">
                     <Route className="w-3.5 h-3.5" />
-                    <span>Unassigned payment</span>
+                    <span>{getTranslation('unassigned_payments', lang)}</span>
                   </p>
                   <p className="mt-1">
-                    No active trip right now. Payments can only be linked to an active trip.
+                    {lang === 'am'
+                      ? 'በአሁኑ ሰዓት የሚካሄድ ጉዞ የለም። ክፍያዎች ሊገናኙ የሚችሉት ንቁ ከሆኑ ጉዞዎች ጋር ብቻ ነው።'
+                      : 'No active trip right now. Payments can only be linked to an active trip.'}
                   </p>
                 </div>
               )}

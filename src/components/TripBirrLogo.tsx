@@ -7,12 +7,12 @@ interface TripBirrLogoProps {
 }
 
 /**
- * Official TripBirr App Icon (matching App icon@2x.png).
+ * Official TripBirr App Icon.
  * Features:
- * - Dark squircle base (#0D1322)
- * - Vibrant green GPS location pin (#2CD48D / #22C55E)
- * - Warm golden sun circle (#FFC738) with bold 'B' emblem
- * - 4 Navigation waypoint trail dots (#60A5FA)
+ * - Obsidian Navy squircle base (#0B0F1A / #141B2D)
+ * - Brand Emerald green GPS location pin (#2CD48D / #10B981)
+ * - Warm Cash Gold sun circle (#F5BA36 / #FBBF24) with bold 'B' emblem
+ * - 4 Telebirr Sky Blue navigation waypoint trail dots (#5CA4F8)
  */
 export const TripBirrLogo: React.FC<TripBirrLogoProps> = ({
   size = 36,
@@ -33,7 +33,7 @@ export const TripBirrLogo: React.FC<TripBirrLogoProps> = ({
       aria-label="TripBirr App Icon"
     >
       <defs>
-        {/* Background dark navy gradient */}
+        {/* Background dark obsidian navy gradient */}
         <linearGradient
           id={`tbBg_${uid}`}
           x1="0"
@@ -42,12 +42,12 @@ export const TripBirrLogo: React.FC<TripBirrLogoProps> = ({
           y2="512"
           gradientUnits="userSpaceOnUse"
         >
-          <stop offset="0%" stopColor="#151D2F" />
-          <stop offset="60%" stopColor="#0D1322" />
-          <stop offset="100%" stopColor="#080C16" />
+          <stop offset="0%" stopColor="#141B2D" />
+          <stop offset="60%" stopColor="#0B0F1A" />
+          <stop offset="100%" stopColor="#060911" />
         </linearGradient>
 
-        {/* Pin emerald gradient */}
+        {/* Pin emerald gradient matching app interface */}
         <linearGradient
           id={`tbPin_${uid}`}
           x1="160"
@@ -56,11 +56,11 @@ export const TripBirrLogo: React.FC<TripBirrLogoProps> = ({
           y2="380"
           gradientUnits="userSpaceOnUse"
         >
-          <stop offset="0%" stopColor="#3EE8A2" />
-          <stop offset="100%" stopColor="#18BE7E" />
+          <stop offset="0%" stopColor="#2CD48D" />
+          <stop offset="100%" stopColor="#10B981" />
         </linearGradient>
 
-        {/* Gold inner emblem */}
+        {/* Gold inner emblem matching app cash gold */}
         <linearGradient
           id={`tbGold_${uid}`}
           x1="200"
@@ -69,13 +69,13 @@ export const TripBirrLogo: React.FC<TripBirrLogoProps> = ({
           y2="260"
           gradientUnits="userSpaceOnUse"
         >
-          <stop offset="0%" stopColor="#FFE082" />
-          <stop offset="100%" stopColor="#FFC132" />
+          <stop offset="0%" stopColor="#FBBF24" />
+          <stop offset="100%" stopColor="#F5BA36" />
         </linearGradient>
 
         {/* Subtle drop glow for pin */}
         <filter id={`tbShadow_${uid}`} x="100" y="80" width="312" height="340" filterUnits="userSpaceOnUse">
-          <feDropShadow dx="0" dy="12" stdDeviation="16" floodColor="#18BE7E" floodOpacity="0.28" />
+          <feDropShadow dx="0" dy="12" stdDeviation="16" floodColor="#10B981" floodOpacity="0.32" />
         </filter>
       </defs>
 
@@ -91,11 +91,11 @@ export const TripBirrLogo: React.FC<TripBirrLogoProps> = ({
         strokeWidth="4"
       />
 
-      {/* 4 Navigation Waypoint Trail Dots Under the Pin Tip */}
-      <circle cx="170" cy="426" r="16" fill="#60A5FA" />
-      <circle cx="218" cy="410" r="16" fill="#60A5FA" />
-      <circle cx="294" cy="410" r="16" fill="#60A5FA" />
-      <circle cx="342" cy="426" r="16" fill="#60A5FA" />
+      {/* 4 Navigation Waypoint Trail Dots Under the Pin Tip in Telebirr Sky Blue */}
+      <circle cx="170" cy="426" r="16" fill="#5CA4F8" />
+      <circle cx="218" cy="410" r="16" fill="#5CA4F8" />
+      <circle cx="294" cy="410" r="16" fill="#5CA4F8" />
+      <circle cx="342" cy="426" r="16" fill="#5CA4F8" />
 
       {/* Green Location Pin */}
       <g filter={`url(#tbShadow_${uid})`}>
@@ -116,7 +116,7 @@ export const TripBirrLogo: React.FC<TripBirrLogoProps> = ({
         fontFamily="system-ui, -apple-system, 'Plus Jakarta Sans', Inter, sans-serif"
         fontWeight="900"
         fontSize="76"
-        fill="#0D1322"
+        fill="#052115"
       >
         B
       </text>

@@ -24,6 +24,7 @@ import {
   reverseGeocodeWithOfflineFallback,
 } from '../services/location/locationService';
 import { useTripBirrStore } from '../store/useTripBirrStore';
+import { getTranslation, Language } from '../utils/i18n';
 
 interface LiveTripMapProps {
   trip: TripRecord;
@@ -145,6 +146,7 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
 }) => {
   const { settings, updateTripDetails } = useTripBirrStore();
   const isDark = settings.theme === 'dark';
+  const lang = (settings.language || 'en') as Language;
   const isTripActive = trip.status === TripStatus.ACTIVE;
 
   // Map mode: 'GPS' (Interactive Leaflet OpenStreetMap street tiles) or 'VECTOR' (SVG vector map)
@@ -625,14 +627,14 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
               }`}
             />
             <span className="text-[11px] font-extrabold text-white tracking-wide">
-              {isTripActive ? 'Active' : trip.status}
+              {isTripActive ? (lang === 'am' ? 'በሂደት ላይ' : 'Active') : (trip.status === TripStatus.COMPLETED ? (lang === 'am' ? 'የተጠናቀቀ' : 'Completed') : trip.status)}
             </span>
             <span className="text-white/30">·</span>
             <span className="text-xs font-extrabold font-mono text-[#F5BA36]">
               {distanceKmDisplay} km
             </span>
             <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-[#2CD48D]/20 text-[#2CD48D]">
-              {roadRoute?.isActualRoad ? "Road" : "Est. Road"}
+              {roadRoute?.isActualRoad ? (lang === 'am' ? 'ትክክለኛ መንገድ' : 'Road') : (lang === 'am' ? 'ግምት መንገድ' : 'Est. Road')}
             </span>
           </div>
 
@@ -644,7 +646,7 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
                 className="min-h-[36px] px-4 py-1.5 rounded-full bg-[#2CD48D] hover:bg-[#25be7d] active:scale-95 text-[#052115] text-xs font-extrabold flex items-center gap-1.5 shadow-[0_6px_20px_rgba(44,212,141,0.4)] transition-all cursor-pointer"
               >
                 <StopCircle className="w-3.5 h-3.5" />
-                <span>End trip</span>
+                <span>{getTranslation('end_trip', lang)}</span>
               </button>
             )}
           </div>
@@ -1014,7 +1016,7 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
                 : 'text-[#8E9BAE] hover:text-white'
             }`}
           >
-            GPS Map
+            {lang === 'am' ? 'የGPS ካርታ' : 'GPS Map'}
           </button>
           <button
             type="button"
@@ -1026,7 +1028,7 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
             }`}
           >
             <Layers className="w-3 h-3" />
-            <span>Vector</span>
+            <span>{lang === 'am' ? 'ቬክተር' : 'Vector'}</span>
           </button>
         </div>
 
@@ -1040,7 +1042,7 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
             title="Acquire live device GPS position"
           >
             <Crosshair className={`w-3.5 h-3.5 ${isUpdatingGps ? 'animate-spin' : ''}`} />
-            <span>{isUpdatingGps ? 'Locating...' : 'My GPS'}</span>
+            <span>{isUpdatingGps ? (lang === 'am' ? 'በመፈለግ...' : 'Locating...') : (lang === 'am' ? 'የእኔ GPS' : 'My GPS')}</span>
           </button>
 
           <button
@@ -1084,7 +1086,7 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
         <div className="min-w-0">
           <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#5CA4F8] flex items-center gap-1">
             <MapPin className="w-3 h-3 shrink-0" />
-            <span>Start</span>
+            <span>{lang === 'am' ? 'መነሻ' : 'Start'}</span>
           </p>
           <p
             className={`text-sm font-extrabold truncate mt-0.5 ${
@@ -1099,7 +1101,7 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
         <div className="min-w-0">
           <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#2CD48D] flex items-center gap-1">
             <Navigation className="w-3 h-3 shrink-0" />
-            <span>{isTripActive ? 'Current' : 'Destination'}</span>
+            <span>{isTripActive ? (lang === 'am' ? 'አሁን ያለበት' : 'Current') : (lang === 'am' ? 'መድረሻ' : 'Destination')}</span>
           </p>
           <p
             className={`text-sm font-extrabold truncate mt-0.5 ${
@@ -1113,7 +1115,7 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
         {/* Distance Measure */}
         <div className="text-right">
           <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#8E9BAE]">
-            {roadRoute?.isActualRoad ? "Road Distance" : "Est. Distance"}
+            {roadRoute?.isActualRoad ? getTranslation('road_distance', lang) : getTranslation('est_distance', lang)}
           </p>
           <p className="text-sm font-extrabold font-mono text-[#F5BA36] mt-0.5">
             {distanceKmDisplay} km

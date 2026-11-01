@@ -4,34 +4,33 @@
     android:height="108dp"
     android:viewportWidth="512"
     android:viewportHeight="512">
-    <!-- Wireless Telebirr Payment Signal Arcs -->
+    <!-- 4 Navigation Waypoint Trail Dots in Telebirr Sky Blue (#5CA4F8) -->
     <path
-        android:strokeColor="#F4B740"
-        android:strokeWidth="14"
-        android:strokeLineCap="round"
-        android:pathData="M336,122 A76,76 0 0,1 394,180" />
+        android:fillColor="#5CA4F8"
+        android:pathData="M170,426m-16,0a16,16 0 1,0 32,0a16,16 0 1,0 -32,0" />
     <path
-        android:strokeColor="#FFE082"
-        android:strokeWidth="10"
-        android:strokeLineCap="round"
-        android:pathData="M352,94 A112,112 0 0,1 422,164" />
-    <!-- Dynamic Highway Route Ribbon -->
+        android:fillColor="#5CA4F8"
+        android:pathData="M218,410m-16,0a16,16 0 1,0 32,0a16,16 0 1,0 -32,0" />
     <path
-        android:strokeColor="#43C99A"
-        android:strokeWidth="36"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M116,404 C138,334 198,316 256,290 C314,264 356,232 356,184 C356,128.77 311.23,84 256,84 C200.77,84 156,128.77 156,184 C156,238 206,276 256,336 C284,370 306,394 392,404" />
-    <!-- GPS Route Pin Shield -->
+        android:fillColor="#5CA4F8"
+        android:pathData="M294,410m-16,0a16,16 0 1,0 32,0a16,16 0 1,0 -32,0" />
     <path
-        android:fillColor="#43C99A"
-        android:pathData="M256,92 C205.2,92 164,133.2 164,184 C164,242.5 256,332 256,332 C256,332 348,242.5 348,184 C348,133.2 306.8,92 256,92 Z" />
-    <!-- Inner Deep Emerald Cutout -->
+        android:fillColor="#5CA4F8"
+        android:pathData="M342,426m-16,0a16,16 0 1,0 32,0a16,16 0 1,0 -32,0" />
+
+    <!-- Emerald Location Pin (#2CD48D) -->
     <path
-        android:fillColor="#0E2F29"
-        android:pathData="M256,128 A56,56 0 1,1 255.9,128 Z" />
-    <!-- Gold Compass Navigation Arrow Inside Pin -->
+        android:fillColor="#2CD48D"
+        android:pathData="M256,100 C188,100 134,154 134,222 C134,300 256,414 256,414 C256,414 378,300 378,222 C378,154 324,100 256,100 Z" />
+
+    <!-- Cash Gold Sun Circle inside Pin Head (#F5BA36) -->
     <path
-        android:fillColor="#F4B740"
-        android:pathData="M234,206 L256,146 L278,206 L256,193 Z" />
+        android:fillColor="#F5BA36"
+        android:pathData="M256,216m-62,0a62,62 0 1,0 124,0a62,62 0 1,0 -124,0" />
+
+    <!-- Bold Dark 'B' Emblem Path (#052115) -->
+    <path
+        android:fillColor="#052115"
+        android:fillType="evenOdd"
+        android:pathData="M236,182 L264,182 C276,182 284,188 284,198 C284,206 278,212 268,214 C280,216 288,223 288,234 C288,245 278,252 264,252 L236,252 Z M248,194 L248,210 L262,210 C268,210 272,207 272,202 C272,197 268,194 262,194 Z M248,222 L248,240 L263,240 C270,240 274,237 274,231 C274,225 270,222 263,222 Z" />
 </vector>

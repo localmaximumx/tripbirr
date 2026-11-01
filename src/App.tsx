@@ -169,20 +169,20 @@ export default function App() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="text-xs font-extrabold uppercase tracking-wider text-[#F5BA36]">
-                      Daily Target Reached!
+                      {getTranslation('target_reached_alert_title', lang)}
                     </p>
                     <p className="text-sm font-extrabold text-white mt-0.5">
-                      Congratulations, {driverFirstName}!
+                      {getTranslation('congratulations', lang)}, {driverFirstName}!
                     </p>
                     <p className="text-xs text-[#B4C6EE] mt-1">
-                      You hit your daily goal of{' '}
+                      {lang === 'am' ? 'የቀን ግብዎን ' : 'You hit your daily goal of '}
                       <strong className="text-white font-mono">
                         {formatMinorUnits(
                           dailyTargetAlert.targetMinorUnits,
                           settings.currency_display
                         )}
                       </strong>{' '}
-                      (Total today:{' '}
+                      {lang === 'am' ? '(የዛሬ ድምር፡ ' : '(Total today: '}
                       <strong className="text-[#2CD48D] font-mono">
                         {formatMinorUnits(
                           dailyTargetAlert.achievedMinorUnits,
@@ -209,7 +209,7 @@ export default function App() {
               <div className="pointer-events-auto rounded-2xl bg-[#131926]/95 backdrop-blur-md text-white p-4 border border-[#2CD48D]/50 shadow-[0_16px_40px_rgba(0,0,0,0.55)] space-y-2.5 animate-in fade-in slide-in-from-top-3 duration-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs text-[#2CD48D] font-bold">
-                    <span>Telebirr 127 received</span>
+                    <span>{lang === 'am' ? 'የቴሌብር 127 ክፍያ ደርሷል' : 'Telebirr 127 received'}</span>
                     {latestAlert && (
                       <>
                         <span aria-hidden="true">·</span>
@@ -245,7 +245,7 @@ export default function App() {
                       : latestAlert?.amountFormatted}
                   </span>
                   <span className="text-xs text-[#94A3B8]">
-                    From{' '}
+                    {lang === 'am' ? 'ከ ' : 'From '}
                     <strong className="text-white">
                       {formatPayerName(
                         validPendingPrompt?.senderName || latestAlert?.senderName,
@@ -258,14 +258,29 @@ export default function App() {
                 {validPendingPrompt && (
                   <>
                     <p className="text-xs text-[#CBD5E1]">
-                      Link this payment to active trip from{' '}
-                      <span className="font-bold text-white">
-                        {validPendingPrompt.activeTripStartLocation.replace(
-                          ', Addis Ababa',
-                          ''
-                        )}
-                      </span>
-                      ?
+                      {lang === 'am' ? (
+                        <>
+                          ይህንን ክፍያ ከ{' '}
+                          <span className="font-bold text-white">
+                            {validPendingPrompt.activeTripStartLocation.replace(
+                              ', Addis Ababa',
+                              ''
+                            )}
+                          </span>{' '}
+                          ጉዞ ጋር ማገናኘት ይፈልጋሉ?
+                        </>
+                      ) : (
+                        <>
+                          Link this payment to active trip from{' '}
+                          <span className="font-bold text-white">
+                            {validPendingPrompt.activeTripStartLocation.replace(
+                              ', Addis Ababa',
+                              ''
+                            )}
+                          </span>
+                          ?
+                        </>
+                      )}
                     </p>
                     <div className="flex items-center gap-2 pt-1">
                       <button
@@ -273,7 +288,7 @@ export default function App() {
                         onClick={() => confirmPendingTripAssociation(false)}
                         className="flex-1 min-h-[36px] px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-white transition-colors cursor-pointer"
                       >
-                        Keep Unassigned
+                        {getTranslation('keep_unassigned', lang)}
                       </button>
                       <button
                         type="button"
@@ -281,7 +296,7 @@ export default function App() {
                         className="flex-1 min-h-[36px] px-3 py-1.5 rounded-xl bg-[#2CD48D] text-[#052115] text-xs font-extrabold flex items-center justify-center gap-1 hover:opacity-95 transition-opacity cursor-pointer"
                       >
                         <Check className="w-3.5 h-3.5" />
-                        Link to Trip
+                        {getTranslation('link_to_trip', lang)}
                       </button>
                     </div>
                   </>

@@ -37,6 +37,7 @@ export const ReportsScreen: React.FC = () => {
   const { trips, transactions, settings } = useTripBirrStore();
   const isDark = settings.theme === 'dark';
   const currency = settings.currency_display;
+  const lang = (settings.language || 'en') as Language;
 
   // Default to LAST_7_DAYS ("Week")
   const [preset, setPreset] = useState<ReportDateRangePreset>('LAST_7_DAYS');
@@ -240,23 +241,23 @@ export const ReportsScreen: React.FC = () => {
   }, [chartPoints]);
 
   const periodLabel = activeDayPoint
-    ? WEEKDAY_FULL_LABELS[activeDayPoint.isoDate] || `Day (${activeDayPoint.label})`
+    ? (lang === 'am' ? `ቀን (${activeDayPoint.label})` : (WEEKDAY_FULL_LABELS[activeDayPoint.isoDate] || `Day (${activeDayPoint.label})`))
     : preset === 'TODAY'
-    ? 'Today'
+    ? getTranslation('report_today', lang)
     : preset === 'LAST_7_DAYS'
-    ? 'This week'
+    ? (lang === 'am' ? 'ይህ ሳምንት' : 'This week')
     : preset === 'LAST_30_DAYS'
-    ? 'This month'
-    : 'Selected period';
+    ? (lang === 'am' ? 'ይህ ወር' : 'This month')
+    : (lang === 'am' ? 'የተመረጠ ጊዜ' : 'Selected period');
 
   const maxVal = Math.max(...chartPoints.map((d) => d.netMinorUnits), 1);
   const MAX_BAR_HEIGHT_PX = 96;
 
   const filterChips: { id: ReportDateRangePreset; label: string }[] = [
-    { id: 'TODAY', label: 'Today' },
-    { id: 'LAST_7_DAYS', label: 'Week' },
-    { id: 'LAST_30_DAYS', label: 'Month' },
-    { id: 'CUSTOM', label: 'Custom' },
+    { id: 'TODAY', label: getTranslation('report_today', lang) },
+    { id: 'LAST_7_DAYS', label: getTranslation('report_week', lang) },
+    { id: 'LAST_30_DAYS', label: getTranslation('report_month', lang) },
+    { id: 'CUSTOM', label: getTranslation('report_custom', lang) },
   ];
 
   const handleExportTransactionsCsv = () => {
@@ -325,7 +326,7 @@ export const ReportsScreen: React.FC = () => {
         >
           <div>
             <label className="block text-[11px] font-bold text-[#8E9BAE] mb-1">
-              From Date
+              {lang === 'am' ? 'ከቀን' : 'From Date'}
             </label>
             <input
               type="date"
@@ -343,7 +344,7 @@ export const ReportsScreen: React.FC = () => {
           </div>
           <div>
             <label className="block text-[11px] font-bold text-[#8E9BAE] mb-1">
-              To Date
+              {lang === 'am' ? 'እስከ ቀን' : 'To Date'}
             </label>
             <input
               type="date"
@@ -374,10 +375,10 @@ export const ReportsScreen: React.FC = () => {
               className="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 text-[11px] font-bold text-white flex items-center gap-1 transition-colors cursor-pointer"
             >
               <RotateCcw className="w-3 h-3" />
-              <span>Full week</span>
+              <span>{getTranslation('full_week', lang)}</span>
             </button>
           ) : (
-            <span className="text-[11px] text-[#94A8D6]">Tap any day bar</span>
+            <span className="text-[11px] text-[#94A8D6]">{getTranslation('tap_day_bar', lang)}</span>
           )}
         </div>
 
@@ -387,14 +388,13 @@ export const ReportsScreen: React.FC = () => {
 
         {activeDayPoint ? (
           <p className="text-xs font-semibold text-[#F5BA36] mt-2">
-            {activeDayPoint.paymentCount}{' '}
-            {activeDayPoint.paymentCount === 1 ? 'payment' : 'payments'} · Telebirr{' '}
-            {currency} {formatWholeNumberWithCommas(activeDayPoint.telebirrMinorUnits)} ·
-            Cash {currency} {formatWholeNumberWithCommas(activeDayPoint.cashMinorUnits)}
+            {activeDayPoint.paymentCount} {getTranslation('payments', lang)} · {getTranslation('telebirr', lang)}{' '}
+            {currency} {formatWholeNumberWithCommas(activeDayPoint.telebirrMinorUnits)} ·{' '}
+            {getTranslation('cash', lang)} {currency} {formatWholeNumberWithCommas(activeDayPoint.cashMinorUnits)}
           </p>
         ) : (
           <p className="text-xs font-semibold text-[#5CA4F8] mt-2">
-            {report.incomingPaymentCount} payments · Yesterday {currency}{' '}
+            {report.incomingPaymentCount} {getTranslation('payments', lang)} · {getTranslation('yesterday', lang)} {currency}{' '}
             {formatWholeNumberWithCommas(yesterdayReport.combinedNetIncomeMinorUnits)}
           </p>
         )}
@@ -478,7 +478,7 @@ export const ReportsScreen: React.FC = () => {
               isDark ? 'text-white' : 'text-[#0F172A]'
             }`}
           >
-            Telebirr vs cash {activeDayPoint ? `(${activeDayPoint.label})` : ''}
+            {lang === 'am' ? 'ቴሌብር እና ጥሬ ገንዘብ' : 'Telebirr vs cash'} {activeDayPoint ? `(${activeDayPoint.label})` : ''}
           </h2>
           <span className="text-sm font-semibold text-[#8E9BAE]">
             {telebirrPct} / {cashPct}
@@ -498,10 +498,10 @@ export const ReportsScreen: React.FC = () => {
 
         <div className="mt-2.5 flex items-center justify-between text-xs font-bold">
           <span className="text-[#5CA4F8]">
-            Telebirr {formatWholeNumberWithCommas(telebirrMinor)}
+            {getTranslation('telebirr', lang)} {formatWholeNumberWithCommas(telebirrMinor)}
           </span>
           <span className="text-[#F5BA36]">
-            Cash {formatWholeNumberWithCommas(cashMinor)}
+            {getTranslation('cash', lang)} {formatWholeNumberWithCommas(cashMinor)}
           </span>
         </div>
       </section>
@@ -515,7 +515,7 @@ export const ReportsScreen: React.FC = () => {
               : 'bg-white border border-slate-200/80 shadow-xs'
           }`}
         >
-          <p className="text-xs font-medium text-[#8E9BAE]">Completed trips</p>
+          <p className="text-xs font-medium text-[#8E9BAE]">{getTranslation('completed_trips', lang)}</p>
           <p
             className={`text-[32px] font-extrabold leading-tight mt-1 ${
               isDark ? 'text-white' : 'text-[#0F172A]'
@@ -532,7 +532,7 @@ export const ReportsScreen: React.FC = () => {
               : 'bg-white border border-slate-200/80 shadow-xs'
             }`}
         >
-          <p className="text-xs font-medium text-[#8E9BAE]">Avg per trip</p>
+          <p className="text-xs font-medium text-[#8E9BAE]">{getTranslation('avg_per_trip', lang)}</p>
           <p
             className={`text-[30px] font-extrabold leading-tight mt-1 ${
               isDark ? 'text-white' : 'text-[#0F172A]'
@@ -554,13 +554,9 @@ export const ReportsScreen: React.FC = () => {
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-medium text-[#8E9BAE]">
-              Highest-earning trip ({highestTripForSelection.contextLabel})
+              {lang === 'am' ? 'ከፍተኛ ገቢ የተገኘበት ጉዞ' : 'Highest-earning trip'} ({highestTripForSelection.contextLabel})
               {highestTripForSelection.paymentCount > 0
-                ? ` · ${highestTripForSelection.paymentCount} ${
-                    highestTripForSelection.paymentCount === 1
-                      ? 'payment'
-                      : 'payments'
-                  }`
+                ? ` · ${highestTripForSelection.paymentCount} ${getTranslation('payments', lang)}`
                 : ''}
             </p>
             <p
@@ -588,7 +584,7 @@ export const ReportsScreen: React.FC = () => {
                 : 'border-slate-100 text-slate-500'
             }`}
           >
-            <span>Highest-earning day of week</span>
+            <span>{lang === 'am' ? 'በሳምንቱ ከፍተኛ ገቢ የተገኘበት ቀን' : 'Highest-earning day of week'}</span>
             <span className="font-bold text-[#2CD48D] tabular-nums">
               {(
                 WEEKDAY_FULL_LABELS[highestEarningDay.isoDate] ||
@@ -610,7 +606,7 @@ export const ReportsScreen: React.FC = () => {
         }`}
       >
         <p className="text-xs font-bold text-[#8E9BAE]">
-          Export Offline CSV Reports
+          {lang === 'am' ? 'ሪፖርት በCSV አውርድ' : 'Export Offline CSV Reports'}
         </p>
         <div className="grid grid-cols-3 gap-2">
           <button
@@ -623,7 +619,7 @@ export const ReportsScreen: React.FC = () => {
             }`}
           >
             <Download className="w-3.5 h-3.5 text-[#2CD48D]" />
-            Payments
+            {getTranslation('payments', lang)}
           </button>
           <button
             type="button"
@@ -635,7 +631,7 @@ export const ReportsScreen: React.FC = () => {
             }`}
           >
             <Download className="w-3.5 h-3.5 text-[#5CA4F8]" />
-            Trips
+            {getTranslation('trips_title', lang)}
           </button>
           <button
             type="button"
@@ -647,7 +643,7 @@ export const ReportsScreen: React.FC = () => {
             }`}
           >
             <Download className="w-3.5 h-3.5 text-[#F5BA36]" />
-            Daily CSV
+            {lang === 'am' ? 'የቀን CSV' : 'Daily CSV'}
           </button>
         </div>
       </div>

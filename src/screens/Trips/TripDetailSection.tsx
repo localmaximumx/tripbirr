@@ -28,6 +28,7 @@ import {
   formatPhonePrivacy,
 } from '../../utils/formatters';
 import { LiveTripMap } from '../../components/LiveTripMap';
+import { getTranslation, Language } from '../../utils/i18n';
 
 interface TripDetailSectionProps {
   trip: TripRecord;
@@ -58,6 +59,7 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
 
   const isDark = settings.theme === 'dark';
   const currency = settings.currency_display;
+  const lang = (settings.language || 'en') as Language;
 
   // Slide-up entrance animation + drag-down to dismiss
   const [isEntered, setIsEntered] = useState(false);
@@ -169,7 +171,7 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
           <div className="w-12 h-1.5 rounded-full bg-[#8E9BAE]/50" />
           <span className="text-[10px] font-semibold text-[#8E9BAE] flex items-center gap-0.5 mt-1">
             <ChevronDown className="w-3 h-3" />
-            <span>Push down to close</span>
+            <span>{lang === 'am' ? 'ለመዝጋት ወደታች ይሳቡ' : 'Push down to close'}</span>
           </span>
         </div>
 
@@ -196,22 +198,22 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
             >
               <div>
                 <p className="text-xs font-medium text-[#8E9BAE]">
-                  Started {formatClock12Hour(trip.start_time)} · {summary.paymentCount}{' '}
-                  {summary.paymentCount === 1 ? 'payment' : 'payments'}
+                  {lang === 'am' ? 'የተጀመረበት፡ ' : 'Started '}{formatClock12Hour(trip.start_time)} · {summary.paymentCount}{' '}
+                  {getTranslation('payments', lang)}
                 </p>
                 <div className="flex items-center gap-3 text-xs font-bold mt-1">
                   <span className="text-[#5CA4F8]">
-                    Telebirr {formatMinorUnits(summary.telebirrMinorUnits, currency)}
+                    {getTranslation('telebirr', lang)} {formatMinorUnits(summary.telebirrMinorUnits, currency)}
                   </span>
                   <span className="text-[#8E9BAE]">·</span>
                   <span className="text-[#F5BA36]">
-                    Cash {formatMinorUnits(summary.cashMinorUnits, currency)}
+                    {getTranslation('cash', lang)} {formatMinorUnits(summary.cashMinorUnits, currency)}
                   </span>
                 </div>
               </div>
 
               <div className="text-right shrink-0">
-                <p className="text-[11px] font-medium text-[#8E9BAE]">Trip Total</p>
+                <p className="text-[11px] font-medium text-[#8E9BAE]">{lang === 'am' ? 'የጉዞው ድምር' : 'Trip Total'}</p>
                 <p className="text-xl font-extrabold tabular-nums text-[#2CD48D]">
                   {formatMinorUnits(summary.totalMinorUnits, currency)}
                 </p>
@@ -226,7 +228,7 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
                     isDark ? 'text-white' : 'text-[#0F172A]'
                   }`}
                 >
-                  Trip transactions ({summary.transactions.length})
+                  {lang === 'am' ? `የጉዞ ክፍያዎች (${summary.transactions.length})` : `Trip transactions (${summary.transactions.length})`}
                 </h2>
                 <p className="text-xs text-[#8E9BAE]">
                   {startShort} → {endShort}
@@ -240,7 +242,7 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
                   className="min-h-[36px] px-3.5 py-1.5 rounded-full bg-[#F5BA36]/15 text-[#F5BA36] text-xs font-extrabold flex items-center gap-1.5 cursor-pointer"
                 >
                   <Banknote className="w-3.5 h-3.5" />
-                  <span>+ Cash</span>
+                  <span>+ {getTranslation('cash', lang)}</span>
                 </button>
               )}
             </div>
@@ -254,9 +256,9 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
                     : 'bg-white border-slate-200/80 text-slate-500'
                 }`}
               >
-                <p className="text-sm font-bold">No payments linked to this trip yet</p>
+                <p className="text-sm font-bold">{lang === 'am' ? 'እስካሁን ከዚህ ጉዞ ጋር የተገናኘ ክፍያ የለም' : 'No payments linked to this trip yet'}</p>
                 <p className="text-xs mt-1">
-                  Incoming Telebirr 127 SMS or manual cash entries will appear here.
+                  {lang === 'am' ? 'የቴሌብር 127 SMS ወይም የጥሬ ገንዘብ ክፍያዎች እዚህ ይታያሉ።' : 'Incoming Telebirr 127 SMS or manual cash entries will appear here.'}
                 </p>
               </div>
             ) : (
@@ -306,14 +308,14 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
                             }`}
                           >
                             {isCash
-                              ? 'Cash payment'
+                              ? getTranslation('cash_payment', lang)
                               : formatPayerName(
                                   tx.sender_name,
                                   settings.privacy_mask_sender_names
                                 )}
                           </p>
                           <p className="text-xs text-[#8E9BAE] truncate mt-0.5">
-                            {isCash ? 'Manual cash' : 'Telebirr 127'} · {time12}
+                            {isCash ? getTranslation('manual', lang) : `${getTranslation('telebirr', lang)} 127`} · {time12}
                             {tx.transaction_id ? ` · ${tx.transaction_id}` : ''}
                           </p>
                         </div>
@@ -344,7 +346,7 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
                 >
                   <Link2 className="w-3.5 h-3.5" />
                   <span>
-                    Unassigned payments available to link ({unassignedPayments.length})
+                    {lang === 'am' ? `ሊገናኙ የሚችሉ ያልተገናኙ ክፍያዎች (${unassignedPayments.length})` : `Unassigned payments available to link (${unassignedPayments.length})`}
                   </span>
                 </p>
                 <div className="space-y-2">
@@ -382,7 +384,7 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
                         className="px-3 py-1.5 rounded-xl bg-[#2CD48D] text-[#052115] text-xs font-extrabold flex items-center gap-1 shrink-0 cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5" />
-                        <span>Link</span>
+                        <span>{lang === 'am' ? 'አገናኝ' : 'Link'}</span>
                       </button>
                     </div>
                   ))}
@@ -424,7 +426,7 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
                   <div>
                     <h3 className="text-base font-extrabold">
                       {selectedTx.payment_method === PaymentMethod.CASH
-                        ? 'Cash payment'
+                        ? getTranslation('cash_payment', lang)
                         : formatPayerName(
                             selectedTx.sender_name,
                             settings.privacy_mask_sender_names
@@ -432,8 +434,8 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
                     </h3>
                     <p className="text-xs text-[#8E9BAE]">
                       {selectedTx.payment_method === PaymentMethod.CASH
-                        ? 'Manual cash'
-                        : `Telebirr${
+                        ? getTranslation('manual', lang)
+                        : `${getTranslation('telebirr', lang)}${
                             selectedTx.sender_phone
                               ? ` · ${formatPhonePrivacy(
                                   selectedTx.sender_phone,
@@ -467,7 +469,7 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
                 }`}
               >
                 <div>
-                  <p className="text-[#8E9BAE] font-medium">Payment Time</p>
+                  <p className="text-[#8E9BAE] font-medium">{lang === 'am' ? 'የክፍያ ሰዓት' : 'Payment Time'}</p>
                   <p className="font-bold mt-0.5">
                     {formatClock12Hour(selectedTx.transaction_time)}
                   </p>
@@ -475,8 +477,8 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
                 <div>
                   <p className="text-[#8E9BAE] font-medium">
                     {selectedTx.payment_method === PaymentMethod.CASH
-                      ? 'Note'
-                      : 'Transaction ID'}
+                      ? (lang === 'am' ? 'ማስታወሻ' : 'Note')
+                      : (lang === 'am' ? 'የግብይት ቁጥር (ID)' : 'Transaction ID')}
                   </p>
                   <p className="font-mono font-bold mt-0.5 truncate">
                     {selectedTx.payment_method === PaymentMethod.CASH
@@ -496,17 +498,17 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#5CA4F8] flex items-center gap-1.5">
                     <Route className="w-3.5 h-3.5" />
-                    <span>Trip</span>
+                    <span>{lang === 'am' ? 'ጉዞ' : 'Trip'}</span>
                   </span>
                   <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-[#5CA4F8] text-[#09152B]">
-                    {trip.status === TripStatus.ACTIVE ? '● Active' : 'Completed'}
+                    {trip.status === TripStatus.ACTIVE ? `● ${getTranslation('active_now', lang)}` : getTranslation('completed', lang)}
                   </span>
                 </div>
                 <p className="text-sm font-extrabold mt-1.5">
                   {startShort} → {endShort}
                 </p>
                 <p className="text-xs text-[#8E9BAE] mt-0.5">
-                  Started {formatClock12Hour(trip.start_time)}
+                  {lang === 'am' ? 'የተጀመረበት፡ ' : 'Started '}{formatClock12Hour(trip.start_time)}
                 </p>
               </div>
             </div>

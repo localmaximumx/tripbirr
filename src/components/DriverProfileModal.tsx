@@ -6,6 +6,7 @@ import {
 import { useTripBirrStore } from '../store/useTripBirrStore';
 import { DriverProfileRecord } from '../database/schema';
 import { parseAmountToMinorUnits } from '../services/sms/smsParser';
+import { getTranslation, Language } from '../utils/i18n';
 
 interface DriverProfileModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({
   const { driverProfile, settings, updateDriverProfile } = useTripBirrStore();
 
   const isDark = settings.theme === 'dark';
+  const lang = (settings.language || 'en') as Language;
 
   const [fullName, setFullName] = useState(driverProfile.full_name);
   const [telebirrPhone, setTelebirrPhone] = useState(driverProfile.telebirr_phone);
@@ -163,9 +165,9 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({
               {initials}
             </div>
             <div>
-              <h2 className="text-lg font-extrabold">Edit Profile</h2>
+              <h2 className="text-lg font-extrabold">{getTranslation('edit_profile_title', lang)}</h2>
               <p className="text-xs text-[#8E9BAE]">
-                Updates your greeting &amp; profile across TripBirr
+                {getTranslation('edit_profile_desc', lang)}
               </p>
             </div>
           </div>
@@ -189,7 +191,7 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({
             }`}
           >
             <CheckCircle2 className="w-4 h-4 text-[#2CD48D]" />
-            <span>Profile updated!</span>
+            <span>{lang === 'am' ? 'መረጃው ተስተካክሏል!' : 'Profile updated!'}</span>
           </div>
         )}
 
@@ -198,7 +200,7 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({
           <div className="grid grid-cols-1 gap-3">
             <div>
               <label className="block font-bold mb-1 text-[#8E9BAE]">
-                Driver Name (Shown in Home Greeting &amp; Profile)
+                {lang === 'am' ? 'የአሽከርካሪ ሙሉ ስም' : 'Driver Name (Shown in Home Greeting & Profile)'}
               </label>
               <input
                 type="text"
@@ -215,7 +217,7 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({
 
             <div>
               <label className="block font-bold mb-1 text-[#8E9BAE]">
-                Telebirr Phone Number
+                {getTranslation('telebirr_phone', lang)}
               </label>
               <input
                 type="text"
@@ -232,7 +234,7 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({
             <div className="grid grid-cols-2 gap-2.5">
               <div>
                 <label className="block font-bold mb-1 text-[#8E9BAE]">
-                  Account Type
+                  {getTranslation('account_type', lang)}
                 </label>
                 <select
                   value={accountType}
@@ -247,14 +249,14 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({
                       : 'bg-[#F7F9FC] border-slate-200 text-[#0F172A]'
                   }`}
                 >
-                  <option value="PERSONAL_EMONEY">Personal E-Money</option>
-                  <option value="MERCHANT_AGENT">Driver / Merchant</option>
+                  <option value="PERSONAL_EMONEY">{lang === 'am' ? 'የግል ኢ-ገንዘብ (Personal)' : 'Personal E-Money'}</option>
+                  <option value="MERCHANT_AGENT">{lang === 'am' ? 'ነጋዴ / ወኪል (Merchant)' : 'Driver / Merchant'}</option>
                 </select>
               </div>
 
               <div>
                 <label className="block font-bold mb-1 text-[#8E9BAE]">
-                  Vehicle Type
+                  {getTranslation('vehicle_type', lang)}
                 </label>
                 <select
                   value={vehicleType}
@@ -269,11 +271,11 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({
                       : 'bg-[#F7F9FC] border-slate-200 text-[#0F172A]'
                   }`}
                 >
-                  <option value="MINIBUS_TAXI">Minibus Taxi</option>
-                  <option value="LADA_TAXI">Lada / Sedan Taxi</option>
-                  <option value="METER_RIDE">Meter / App Ride</option>
-                  <option value="BAJAJ">Bajaj Three-Wheeler</option>
-                  <option value="PRIVATE">Private Vehicle</option>
+                  <option value="MINIBUS_TAXI">{getTranslation('taxi_minibus', lang)}</option>
+                  <option value="LADA_TAXI">{getTranslation('taxi_lada', lang)}</option>
+                  <option value="METER_RIDE">{lang === 'am' ? 'የሜትር / አፕ ራይድ' : 'Meter / App Ride'}</option>
+                  <option value="BAJAJ">{getTranslation('taxi_bajaj', lang)}</option>
+                  <option value="PRIVATE">{lang === 'am' ? 'የግል ተሽከርካሪ' : 'Private Vehicle'}</option>
                 </select>
               </div>
             </div>
@@ -281,7 +283,7 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({
             <div className="grid grid-cols-2 gap-2.5">
               <div>
                 <label className="block font-bold mb-1 text-[#8E9BAE]">
-                  Vehicle Plate
+                  {getTranslation('vehicle_plate', lang)}
                 </label>
                 <input
                   type="text"
@@ -297,7 +299,7 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({
 
               <div>
                 <label className="block font-bold mb-1 text-[#8E9BAE]">
-                  Daily Target (ETB)
+                  {getTranslation('daily_target_etb', lang)}
                 </label>
                 <input
                   type="text"
@@ -314,7 +316,7 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({
 
             <div>
               <label className="block font-bold mb-1 text-[#8E9BAE]">
-                Primary Route Corridor
+                {getTranslation('primary_corridor', lang)}
               </label>
               <input
                 type="text"
@@ -339,13 +341,13 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({
                   : 'border-slate-200 text-slate-600 hover:text-slate-900'
               }`}
             >
-              Cancel
+              {getTranslation('cancel', lang)}
             </button>
             <button
               type="submit"
               className="min-h-[44px] px-5 py-2 rounded-xl bg-[#2CD48D] text-[#052115] text-xs font-extrabold cursor-pointer hover:opacity-95 transition-opacity"
             >
-              Save Profile
+              {getTranslation('save_changes', lang)}
             </button>
           </div>
         </form>

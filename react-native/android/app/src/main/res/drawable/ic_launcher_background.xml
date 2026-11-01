@@ -4,12 +4,13 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Obsidian Navy Dark Background Matching TripBirr Theme -->
     <path
-        android:fillColor="#123C35"
+        android:fillColor="#0B0F1A"
         android:pathData="M0,0h108v108h-108z" />
-    <!-- Subtle Addis Ababa Topographic Grid Accent -->
+    <!-- Subtle Modern Card Stroke Grid Accent -->
     <path
-        android:strokeColor="#1D554B"
+        android:strokeColor="#1E293B"
         android:strokeWidth="1.2"
         android:pathData="M0,36 L108,36 M0,72 L108,72 M36,0 L36,108 M72,0 L72,108" />
 </vector>

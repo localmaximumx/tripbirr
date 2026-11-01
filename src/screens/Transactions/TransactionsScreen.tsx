@@ -84,6 +84,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
 
   const isDark = settings.theme === 'dark';
   const currency = settings.currency_display;
+  const lang = (settings.language || 'en') as Language;
 
   // Date range filter: Day ('TODAY'), Week ('LAST_7_DAYS'), Month ('LAST_30_DAYS'), Custom ('CUSTOM')
   const [datePreset, setDatePreset] = useState<ReportDateRangePreset>('TODAY');
@@ -97,6 +98,16 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
   const [dragOffsetY, setDragOffsetY] = useState(0);
   const [isClosing, setIsClosing] = useState(false);
   const dragStartYRef = useRef<number | null>(null);
+
+  const getDateGroupHeader = (isoDate: string): string => {
+    if (isoDate === '2026-11-01') {
+      return lang === 'am' ? 'ዛሬ · እሁድ፣ ጥቅምት 22' : 'TODAY · SUN, NOV 1';
+    }
+    if (isoDate === '2026-10-31') {
+      return lang === 'am' ? 'ትናንት · ቅዳሜ፣ ጥቅምት 21' : 'YESTERDAY · SAT, OCT 31';
+    }
+    return formatDateGroupHeader(isoDate);
+  };
 
   useEffect(() => {
     if (initialFilterHint === 'UNASSIGNED') {
@@ -164,7 +175,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
         });
         return {
           isoDate,
-          headerLabel: formatDateGroupHeader(isoDate),
+          headerLabel: getDateGroupHeader(isoDate),
           subtotalMinorUnits: sortedItems.reduce(
             (sum, item) => sum + item.amount_minor_units,
             0
@@ -172,7 +183,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
           items: sortedItems,
         };
       });
-  }, [filteredPayments]);
+  }, [filteredPayments, lang]);
 
   const selectedTx = useMemo(
     () =>
@@ -235,10 +246,10 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
   };
 
   const dateFilterChips: { id: ReportDateRangePreset; label: string }[] = [
-    { id: 'TODAY', label: 'Day' },
-    { id: 'LAST_7_DAYS', label: 'Week' },
-    { id: 'LAST_30_DAYS', label: 'Month' },
-    { id: 'CUSTOM', label: 'Custom' },
+    { id: 'TODAY', label: getTranslation('period_day', lang) },
+    { id: 'LAST_7_DAYS', label: getTranslation('period_week', lang) },
+    { id: 'LAST_30_DAYS', label: getTranslation('period_month', lang) },
+    { id: 'CUSTOM', label: getTranslation('period_custom', lang) },
   ];
 
   return (
@@ -289,7 +300,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
         >
           <div>
             <label className="block text-[11px] font-bold text-[#8E9BAE] mb-1">
-              From Date
+              {lang === 'am' ? 'ከቀን' : 'From Date'}
             </label>
             <input
               type="date"
@@ -304,7 +315,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
           </div>
           <div>
             <label className="block text-[11px] font-bold text-[#8E9BAE] mb-1">
-              To Date
+              {lang === 'am' ? 'እስከ ቀን' : 'To Date'}
             </label>
             <input
               type="date"
@@ -333,7 +344,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
               : 'bg-white text-[#0F172A] border border-slate-200/80'
           }`}
         >
-          All ({periodPayments.length})
+          {getTranslation('all_methods', lang)} ({periodPayments.length})
         </button>
 
         <button
@@ -347,7 +358,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
               : 'bg-white text-[#0F172A] border border-slate-200/80'
           }`}
         >
-          Telebirr
+          {getTranslation('filter_telebirr', lang)}
         </button>
 
         <button
@@ -361,7 +372,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
               : 'bg-white text-[#0F172A] border border-slate-200/80'
           }`}
         >
-          Cash
+          {getTranslation('filter_cash', lang)}
         </button>
 
         <button
@@ -375,7 +386,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
               : 'bg-[#FEF7E6] text-[#B45309] border border-[#F3D078]'
           }`}
         >
-          Unassigned {unassignedCount}
+          {getTranslation('filter_unassigned', lang)} {unassignedCount}
         </button>
       </div>
 
@@ -388,7 +399,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
               : 'bg-white border border-slate-200/80 text-slate-500 shadow-xs'
           }`}
         >
-          No payments match your selected date range or filter.
+          {lang === 'am' ? 'በተመረጠው ቀን ወይም ማጣሪያ ምንም ክፍያ አልተገኘም።' : 'No payments match your selected date range or filter.'}
         </div>
       ) : (
         <div className="space-y-4">
@@ -456,7 +467,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                             }`}
                           >
                             {isCash
-                              ? 'Cash payment'
+                              ? getTranslation('cash_payment', lang)
                               : formatPayerName(
                                   tx.sender_name,
                                   settings.privacy_mask_sender_names
@@ -496,7 +507,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                                     : 'bg-[#FEF7E6] text-[#B45309]'
                                 }`}
                               >
-                                Needs trip
+                                {getTranslation('needs_trip', lang)}
                               </button>
                             )}
                           </div>
@@ -575,7 +586,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                   <div className="min-w-0">
                     <h3 className="text-lg font-extrabold truncate">
                       {selectedTx.payment_method === PaymentMethod.CASH
-                        ? 'Cash payment'
+                        ? getTranslation('cash_payment', lang)
                         : formatPayerName(
                             selectedTx.sender_name,
                             settings.privacy_mask_sender_names
@@ -583,8 +594,8 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                     </h3>
                     <p className="text-xs text-[#8E9BAE] mt-0.5">
                       {selectedTx.payment_method === PaymentMethod.CASH
-                        ? 'Manual cash'
-                        : `Telebirr${
+                        ? getTranslation('manual', lang)
+                        : `${getTranslation('telebirr', lang)}${
                             selectedTx.sender_phone
                               ? ` · ${formatPhonePrivacy(
                                   selectedTx.sender_phone,
@@ -622,7 +633,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                 }`}
               >
                 <div>
-                  <p className="text-[#8E9BAE] font-medium">Date &amp; Time</p>
+                  <p className="text-[#8E9BAE] font-medium">{lang === 'am' ? 'ቀን እና ሰዓት' : 'Date & Time'}</p>
                   <p className="font-bold mt-0.5">
                     {selectedTx.transaction_date} ·{' '}
                     {formatTime12Hour(selectedTx.transaction_time)}
@@ -631,8 +642,8 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                 <div>
                   <p className="text-[#8E9BAE] font-medium">
                     {selectedTx.payment_method === PaymentMethod.CASH
-                      ? 'Note'
-                      : 'Transaction ID'}
+                      ? (lang === 'am' ? 'ማስታወሻ' : 'Note')
+                      : (lang === 'am' ? 'የግብይት ቁጥር (ID)' : 'Transaction ID')}
                   </p>
                   <p className="font-mono font-bold mt-0.5 truncate">
                     {selectedTx.payment_method === PaymentMethod.CASH
@@ -654,7 +665,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#5CA4F8] flex items-center gap-1.5">
                       <Route className="w-3.5 h-3.5" />
-                      <span>Trip</span>
+                      <span>{lang === 'am' ? 'ጉዞ' : 'Trip'}</span>
                     </span>
                     <span
                       className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold ${
@@ -666,24 +677,24 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                       }`}
                     >
                       {selectedTxTrip.status === TripStatus.ACTIVE
-                        ? '● Active'
-                        : 'Completed'}
+                        ? `● ${getTranslation('active_now', lang)}`
+                        : getTranslation('completed', lang)}
                     </span>
                   </div>
 
                   <p className="text-base font-extrabold mt-2">
                     {selectedTxTrip.start_location_name.replace(', Addis Ababa', '')}{' '}
                     →{' '}
-                    {(selectedTxTrip.end_location_name || 'In progress').replace(
+                    {(selectedTxTrip.end_location_name || (lang === 'am' ? 'በሂደት ላይ' : 'In progress')).replace(
                       ', Addis Ababa',
                       ''
                     )}
                   </p>
 
                   <p className="text-xs text-[#8E9BAE] mt-1">
-                    Started {formatTime12Hour(selectedTxTrip.start_time)}
+                    {lang === 'am' ? 'የተጀመረበት፡ ' : 'Started '}{formatTime12Hour(selectedTxTrip.start_time)}
                     {selectedTxTrip.end_time
-                      ? ` · Ended ${formatTime12Hour(selectedTxTrip.end_time)}`
+                      ? ` · ${lang === 'am' ? 'የተጠናቀቀበት፡ ' : 'Ended '}${formatTime12Hour(selectedTxTrip.end_time)}`
                       : ''}
                   </p>
                 </div>
@@ -691,7 +702,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                 <div className="space-y-2">
                   <p className="text-xs font-extrabold uppercase tracking-wider text-[#F5BA36] flex items-center gap-1.5">
                     <Route className="w-3.5 h-3.5" />
-                    <span>Needs trip — Tap to assign to active trip</span>
+                    <span>{lang === 'am' ? 'ጉዞ ይፈልጋል — ከሚካሄድ ጉዞ ጋር ለማገናኘት ይጫኑ' : 'Needs trip — Tap to assign to active trip'}</span>
                   </p>
                   <div className="space-y-2 max-h-44 overflow-y-auto">
                     {assignableTrips.map((tr) => {
@@ -699,7 +710,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                         ', Addis Ababa',
                         ''
                       );
-                      const endShort = (tr.end_location_name || 'In progress').replace(
+                      const endShort = (tr.end_location_name || (lang === 'am' ? 'በሂደት ላይ' : 'In progress')).replace(
                         ', Addis Ababa',
                         ''
                       );
@@ -723,11 +734,11 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                           <div>
                             <p className="font-bold text-sm">{label}</p>
                             <p className="text-[11px] text-[#8E9BAE] mt-0.5">
-                              ● Active · Started {timeStr}
+                              ● {getTranslation('active_now', lang)} · {lang === 'am' ? 'የተጀመረበት፡ ' : 'Started '}{timeStr}
                             </p>
                           </div>
                           <span className="px-2.5 py-1 rounded-lg bg-[#2CD48D] text-[#052115] font-extrabold">
-                            Link
+                            {lang === 'am' ? 'አገናኝ' : 'Link'}
                           </span>
                         </button>
                       );
@@ -744,10 +755,12 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                 >
                   <p className="font-extrabold text-[#F5BA36] flex items-center gap-1.5">
                     <Route className="w-3.5 h-3.5" />
-                    <span>Unassigned payment</span>
+                    <span>{getTranslation('unassigned_payments', lang)}</span>
                   </p>
                   <p className="mt-1">
-                    No active trip right now. Payments can only be linked to an active trip.
+                    {lang === 'am'
+                      ? 'በአሁኑ ሰዓት የሚካሄድ ጉዞ የለም። ክፍያዎች ሊገናኙ የሚችሉት ንቁ ከሆኑ ጉዞዎች ጋር ብቻ ነው።'
+                      : 'No active trip right now. Payments can only be linked to an active trip.'}
                   </p>
                 </div>
               )}

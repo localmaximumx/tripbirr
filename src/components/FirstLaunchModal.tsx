@@ -319,7 +319,7 @@ export const FirstLaunchModal: React.FC<FirstLaunchModalProps> = ({
                 </div>
                 <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#10B981]/15 text-[#10B981] text-xs font-extrabold">
                   <User className="w-3.5 h-3.5" />
-                  <span>Step 2 of 2</span>
+                  <span>{isAmharic ? 'ደረጃ 2 ከ 2' : 'Step 2 of 2'}</span>
                 </div>
               </div>
 

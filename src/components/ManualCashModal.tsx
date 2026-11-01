@@ -3,6 +3,7 @@ import { Banknote, X } from 'lucide-react';
 import { TripRecord, TripStatus } from '../database/schema';
 import { parseAmountToMinorUnits } from '../services/sms/smsParser';
 import { useTripBirrStore } from '../store/useTripBirrStore';
+import { getTranslation, Language } from '../utils/i18n';
 
 interface ManualCashModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export const ManualCashModal: React.FC<ManualCashModalProps> = ({
 }) => {
   const { settings } = useTripBirrStore();
   const isDark = settings.theme === 'dark';
+  const lang = (settings.language || 'en') as Language;
 
   const activeTrip = trips.find((t) => t.status === TripStatus.ACTIVE);
   const [amountInput, setAmountInput] = useState('50.00');
@@ -42,13 +44,13 @@ export const ManualCashModal: React.FC<ManualCashModalProps> = ({
     e.preventDefault();
     const parsed = parseAmountToMinorUnits(amountInput);
     if (!parsed || parsed.minor <= 0) {
-      setError('Enter a valid positive amount in ETB (e.g., 30 or 50.00).');
+      setError(lang === 'am' ? 'ትክክለኛ የብር መጠን ያስገቡ (ለምሳሌ፡ 30 ወይም 50)።' : 'Enter a valid positive amount in ETB (e.g., 30 or 50.00).');
       return;
     }
     onSaveCash({
       amountMinorUnits: parsed.minor,
-      senderName: senderName.trim() || 'Cash Passenger',
-      description: description.trim() || 'Manual cash fare entry',
+      senderName: senderName.trim() || (lang === 'am' ? 'የጥሬ ገንዘብ ተሳፋሪ' : 'Cash Passenger'),
+      description: description.trim() || (lang === 'am' ? 'የጥሬ ገንዘብ ክፍያ' : 'Manual cash fare entry'),
       tripId: selectedTripId || null,
     });
     onClose();
@@ -74,10 +76,10 @@ export const ManualCashModal: React.FC<ManualCashModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-extrabold">
-                Record Manual Cash Fare
+                {getTranslation('cash_modal_title', lang)}
               </h2>
               <p className="text-xs text-[#8E9BAE]">
-                Tracked alongside Telebirr 127 SMS income
+                {getTranslation('cash_modal_desc', lang)}
               </p>
             </div>
           </div>
@@ -93,7 +95,7 @@ export const ManualCashModal: React.FC<ManualCashModalProps> = ({
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           <div>
             <label className="block text-xs font-bold mb-1.5">
-              Cash Amount (ETB)
+              {getTranslation('cash_amount_label', lang)}
             </label>
             <div className="flex gap-2 mb-2">
               {['20.00', '30.00', '50.00', '100.00'].map((preset) => (
@@ -134,7 +136,7 @@ export const ManualCashModal: React.FC<ManualCashModalProps> = ({
 
           <div>
             <label className="block text-xs font-bold mb-1.5">
-              Associate With Trip
+              {getTranslation('select_trip_label', lang)}
             </label>
             <select
               value={selectedTripId}
@@ -145,12 +147,12 @@ export const ManualCashModal: React.FC<ManualCashModalProps> = ({
                   : 'bg-[#F7F9FC] border-slate-200 text-[#0F172A]'
               }`}
             >
-              <option value="">Unassigned (No Trip)</option>
+              <option value="">{getTranslation('unassigned_option', lang)}</option>
               {trips
                 .filter((t) => t.status === TripStatus.ACTIVE)
                 .map((trip) => (
                   <option key={trip.id} value={trip.id}>
-                    [ACTIVE] {trip.start_location_name} → {trip.end_location_name || 'In Progress'}
+                    [{getTranslation('active_now', lang)}] {trip.start_location_name} → {trip.end_location_name || (lang === 'am' ? 'በሂደት ላይ' : 'In Progress')}
                   </option>
                 ))}
             </select>
@@ -158,13 +160,13 @@ export const ManualCashModal: React.FC<ManualCashModalProps> = ({
 
           <div>
             <label className="block text-xs font-bold mb-1.5">
-              Optional Note
+              {lang === 'am' ? 'ማስታወሻ / ዝርዝር (አማራጭ)' : 'Optional Note'}
             </label>
             <input
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g., 2 passengers cash payment"
+              placeholder={lang === 'am' ? 'ለምሳሌ፡ የ2 ተሳፋሪ ጥሬ ገንዘብ' : 'e.g., 2 passengers cash payment'}
               className={`w-full h-11 px-3.5 rounded-xl border text-sm focus:outline-none focus:border-[#2CD48D] ${
                 isDark
                   ? 'bg-[#0B0F1A] border-white/10 text-white placeholder:text-[#8E9BAE]'
@@ -183,13 +185,13 @@ export const ManualCashModal: React.FC<ManualCashModalProps> = ({
                   : 'border-slate-200 text-slate-600'
               }`}
             >
-              Cancel
+              {getTranslation('cancel', lang)}
             </button>
             <button
               type="submit"
               className="min-h-[44px] px-5 py-2 rounded-xl bg-[#2CD48D] text-[#052115] text-xs font-extrabold hover:opacity-95 transition-opacity cursor-pointer"
             >
-              Save Cash Fare
+              {getTranslation('save_cash', lang)}
             </button>
           </div>
         </form>

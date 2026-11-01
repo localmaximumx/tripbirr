@@ -15,6 +15,7 @@ import {
   reverseGeocodeWithOfflineFallback,
 } from '../services/location/locationService';
 import { useTripBirrStore } from '../store/useTripBirrStore';
+import { getTranslation, Language } from '../utils/i18n';
 
 interface TripActionModalProps {
   mode: 'START' | 'END';
@@ -52,6 +53,7 @@ export const TripActionModal: React.FC<TripActionModalProps> = ({
 }) => {
   const { settings } = useTripBirrStore();
   const isDark = settings.theme === 'dark';
+  const lang = (settings.language || 'en') as Language;
 
   const [placeName, setPlaceName] = useState('');
   const [latitude, setLatitude] = useState<number | null>(null);
@@ -190,7 +192,7 @@ export const TripActionModal: React.FC<TripActionModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!placeName.trim()) {
-      setErrorMsg('Please wait for GPS fix, select a hub, or enter a location name.');
+      setErrorMsg(lang === 'am' ? 'እባክዎ የGPS አካባቢ ይጠብቁ፣ አካባቢ ይምረጡ ወይም ስም ይጻፉ።' : 'Please wait for GPS fix, select a hub, or enter a location name.');
       return;
     }
 
@@ -244,12 +246,12 @@ export const TripActionModal: React.FC<TripActionModalProps> = ({
         >
           <div>
             <h2 className="text-lg font-extrabold">
-              {mode === 'START' ? 'Start New Trip' : 'Complete Active Trip'}
+              {mode === 'START' ? getTranslation('start_new_trip_title', lang) : getTranslation('end_active_trip_title', lang)}
             </h2>
             <p className="text-xs text-[#8E9BAE] mt-0.5">
               {mode === 'START'
-                ? 'Captures your live device GPS position or lets you pick any hub'
-                : `Started from ${activeTrip?.start_location_name}`}
+                ? getTranslation('start_new_trip_desc', lang)
+                : (lang === 'am' ? `የተጀመረው ከ ${activeTrip?.start_location_name}` : `Started from ${activeTrip?.start_location_name}`)}
             </p>
           </div>
           <button
@@ -268,7 +270,7 @@ export const TripActionModal: React.FC<TripActionModalProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-bold">
-                {mode === 'START' ? 'Starting Location' : 'Destination Location'}
+                {mode === 'START' ? getTranslation('start_location_label', lang) : getTranslation('end_location_label', lang)}
               </label>
               <span className="text-xs text-[#5CA4F8] font-mono tabular-nums">
                 {latitude !== null && longitude !== null
@@ -286,8 +288,8 @@ export const TripActionModal: React.FC<TripActionModalProps> = ({
                   onChange={(e) => handleManualInput(e.target.value)}
                   placeholder={
                     isCapturingGps
-                      ? 'Detecting your current GPS location...'
-                      : 'Enter street/area or tap Use My GPS'
+                      ? (lang === 'am' ? 'የአሁኑን GPS አካባቢ በመፈለግ ላይ...' : 'Detecting your current GPS location...')
+                      : (lang === 'am' ? 'አካባቢ ይጻፉ ወይም የአሁኑን GPS ተጫኑ' : 'Enter street/area or tap Use My GPS')
                   }
                   className={`w-full h-11 pl-10 pr-3 rounded-xl border text-sm focus:outline-none focus:border-[#2CD48D] ${
                     isDark
@@ -303,7 +305,7 @@ export const TripActionModal: React.FC<TripActionModalProps> = ({
                 className="h-11 px-3.5 rounded-xl bg-[#2CD48D] text-[#052115] text-xs font-extrabold flex items-center gap-1.5 hover:opacity-95 active:scale-[0.98] transition-all whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <Crosshair className={`w-4 h-4 ${isCapturingGps ? 'animate-spin' : ''}`} />
-                {isCapturingGps ? 'Locating...' : 'Use My GPS'}
+                {isCapturingGps ? (lang === 'am' ? 'በመፈለግ ላይ...' : 'Locating...') : (lang === 'am' ? 'የአሁኑን GPS ተጠቀም' : 'Use My GPS')}
               </button>
             </div>
 
@@ -333,7 +335,7 @@ export const TripActionModal: React.FC<TripActionModalProps> = ({
           <div>
             <div className="flex items-center justify-between gap-2 mb-2">
               <p className="text-xs font-bold text-[#8E9BAE]">
-                Addis Ababa Hubs ({ADDIS_ABABA_LANDMARKS.length})
+                {lang === 'am' ? `የአዲስ አበባ ታዋቂ አካባቢዎች (${ADDIS_ABABA_LANDMARKS.length})` : `Addis Ababa Hubs (${ADDIS_ABABA_LANDMARKS.length})`}
               </p>
               <div className="relative w-44">
                 <Search className="w-3.5 h-3.5 text-[#8E9BAE] absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -341,7 +343,7 @@ export const TripActionModal: React.FC<TripActionModalProps> = ({
                   type="text"
                   value={hubSearch}
                   onChange={(e) => setHubSearch(e.target.value)}
-                  placeholder="Search area (e.g. 6 Kilo)"
+                  placeholder={getTranslation('search_hubs_placeholder', lang)}
                   className={`w-full h-7 pl-7 pr-2 rounded-lg border text-[11px] focus:outline-none focus:border-[#2CD48D] ${
                     isDark
                       ? 'bg-[#0B0F1A] border-white/10 text-white placeholder:text-[#8E9BAE]'
@@ -377,13 +379,13 @@ export const TripActionModal: React.FC<TripActionModalProps> = ({
 
           <div>
             <label className="block text-xs font-bold mb-1.5">
-              Trip Notes (Optional)
+              {lang === 'am' ? 'የጉዞ ማስታወሻ (አማራጭ)' : 'Trip Notes (Optional)'}
             </label>
             <input
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g., Shared taxi route or passenger note"
+              placeholder={lang === 'am' ? 'ለምሳሌ፡ የታክሲ መስመር ወይም የተሳፋሪ ማስታወሻ' : 'e.g., Shared taxi route or passenger note'}
               className={`w-full h-11 px-3.5 rounded-xl border text-sm focus:outline-none focus:border-[#2CD48D] ${
                 isDark
                   ? 'bg-[#0B0F1A] border-white/10 text-white placeholder:text-[#8E9BAE]'
@@ -402,7 +404,7 @@ export const TripActionModal: React.FC<TripActionModalProps> = ({
                   : 'border-slate-200 text-slate-600 hover:text-slate-900'
               }`}
             >
-              Cancel
+              {getTranslation('cancel', lang)}
             </button>
             <button
               type="submit"
@@ -410,7 +412,7 @@ export const TripActionModal: React.FC<TripActionModalProps> = ({
               className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#2CD48D] text-[#052115] text-xs font-extrabold flex items-center gap-2 transition-opacity hover:opacity-95 disabled:opacity-50 cursor-pointer"
             >
               <Navigation className="w-4 h-4" />
-              {mode === 'START' ? 'Start Trip Now' : 'Complete & Save Trip'}
+              {mode === 'START' ? (lang === 'am' ? 'አሁን ጉዞ ጀምር' : 'Start Trip Now') : (lang === 'am' ? 'ጉዞ ጨርስ እና መዝግብ' : 'Complete & Save Trip')}
             </button>
           </div>
         </form>

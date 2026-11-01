@@ -33,6 +33,7 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
 
   const isDark = settings.theme === 'dark';
   const currency = settings.currency_display;
+  const lang = (settings.language || 'en') as Language;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | TripStatus>('ALL');
@@ -57,10 +58,10 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
   }, [trips, statusFilter, searchQuery]);
 
   const filterOptions: { id: 'ALL' | TripStatus; label: string }[] = [
-    { id: 'ALL', label: 'All' },
-    { id: TripStatus.ACTIVE, label: 'Active' },
-    { id: TripStatus.COMPLETED, label: 'Completed' },
-    { id: TripStatus.CANCELLED, label: 'Cancelled' },
+    { id: 'ALL', label: getTranslation('all_trips', lang) },
+    { id: TripStatus.ACTIVE, label: getTranslation('active_now', lang) },
+    { id: TripStatus.COMPLETED, label: getTranslation('completed', lang) },
+    { id: TripStatus.CANCELLED, label: getTranslation('cancelled', lang) },
   ];
 
   return (
@@ -90,7 +91,7 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search places or dates"
+          placeholder={getTranslation('search_places_dates', lang)}
           className="w-full bg-transparent text-sm focus:outline-none placeholder:text-[#8E9BAE]"
         />
       </div>
@@ -128,7 +129,7 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
                 : 'bg-white border border-slate-200 text-slate-500'
             }`}
           >
-            <p className="text-sm font-bold">No trips match this filter</p>
+            <p className="text-sm font-bold">{getTranslation('empty_trips', lang)}</p>
           </div>
         ) : (
           visibleTrips.map((trip) => {
@@ -139,14 +140,14 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
             const startShort = trip.start_location_name.replace(', Addis Ababa', '');
             const endShort = trip.end_location_name
               ? trip.end_location_name.replace(', Addis Ababa', '')
-              : 'In progress';
+              : (lang === 'am' ? 'በሂደት ላይ' : 'In progress');
 
             const durationMinutes = trip.duration
               ? Math.max(1, Math.round(trip.duration / 60))
               : 18;
             const durationDisplay = isActive
               ? `00:${String(durationMinutes).padStart(2, '0')}`
-              : `${durationMinutes} min`;
+              : `${durationMinutes} ${getTranslation('min', lang)}`;
 
             const amountMajorWhole = Math.round(
               summary.totalMinorUnits / 100
@@ -193,11 +194,11 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
                 <div className="flex items-center justify-between gap-2">
                   {isActive ? (
                     <span className="px-3 py-1 rounded-full bg-[#5CA4F8] text-[#09152B] text-xs font-extrabold tracking-wide">
-                      ● Active
+                      ● {getTranslation('active_now', lang)}
                     </span>
                   ) : isCancelled ? (
                     <span className="px-3 py-1 rounded-full bg-[#3A1D28] text-[#F87171] text-xs font-bold">
-                      Cancelled
+                      {getTranslation('cancelled', lang)}
                     </span>
                   ) : (
                     <span
@@ -207,14 +208,14 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
                           : 'bg-[#E8F1FF] text-[#2563EB]'
                       }`}
                     >
-                      Completed
+                      {getTranslation('completed', lang)}
                     </span>
                   )}
 
                   <span className="text-xs font-medium text-[#8E9BAE]">
                     {isActive
-                      ? `Started ${formatTripClockTime(trip.start_time)}`
-                      : `Today · ${formatTripClockTime(trip.start_time)}`}
+                      ? (lang === 'am' ? `የተጀመረበት፡ ${formatTripClockTime(trip.start_time)}` : `Started ${formatTripClockTime(trip.start_time)}`)
+                      : (lang === 'am' ? `ዛሬ · ${formatTripClockTime(trip.start_time)}` : `Today · ${formatTripClockTime(trip.start_time)}`)}
                   </span>
                 </div>
 
@@ -234,8 +235,7 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
 
                 <div className="mt-2.5 flex items-center justify-between gap-2">
                   <span className="text-sm font-medium text-[#8E9BAE]">
-                    {durationDisplay} · {summary.paymentCount}{' '}
-                    {summary.paymentCount === 1 ? 'payment' : 'payments'}
+                    {durationDisplay} · {summary.paymentCount} {getTranslation('payments', lang)}
                     {distKm ? ` · ${distKm} km` : ''}
                   </span>
 

@@ -57,6 +57,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   } = useTripBirrStore();
 
   const isDark = settings.theme === 'dark';
+  const lang = (settings.language || 'en') as Language;
 
   // Segmented control: 'SETTINGS' (default as shown on Page 5) or 'OVERVIEW'
   const [subTab, setSubTab] = useState<'OVERVIEW' | 'SETTINGS'>('SETTINGS');
@@ -84,12 +85,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const vehicleRoleLabel =
     driverProfile.vehicle_type === 'MINIBUS_TAXI' ||
     driverProfile.vehicle_type === 'LADA_TAXI'
-      ? 'Taxi driver'
+      ? (lang === 'am' ? 'የታክሲ አሽከርካሪ' : 'Taxi driver')
       : driverProfile.vehicle_type === 'METER_RIDE'
-      ? 'Ride-hail driver'
+      ? (lang === 'am' ? 'የራይድ አሽከርካሪ' : 'Ride-hail driver')
       : driverProfile.vehicle_type === 'BAJAJ'
-      ? 'Bajaj driver'
-      : 'Driver';
+      ? (lang === 'am' ? 'የባጃጅ አሽከርካሪ' : 'Bajaj driver')
+      : (lang === 'am' ? 'አሽከርካሪ' : 'Driver');
 
   const activePrivacyCount = [
     settings.privacy_hide_balance,
@@ -154,7 +155,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 isDark ? 'text-white' : 'text-[#0F172A]'
               }`}
             >
-              Privacy
+              {lang === 'am' ? 'የግላዊነት ጥበቃ' : 'Privacy'}
             </h1>
           </div>
 
@@ -173,10 +174,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <div>
               <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-[#2CD48D]">
                 <ShieldCheck className="w-4 h-4" />
-                <span>Privacy &amp; Passenger Shield Controls</span>
+                <span>{lang === 'am' ? 'የግላዊነት እና የተሳፋሪ ጥበቃ' : 'Privacy & Passenger Shield Controls'}</span>
               </div>
               <p className="text-xs text-[#8E9BAE] mt-1 leading-relaxed">
-                Customize what is visible on your screen when passengers sit next to you in the cab. All preferences are saved automatically.
+                {lang === 'am' ? 'ተሳፋሪ በአጠገብዎ ሲቀመጥ በስክሪኑ ላይ የሚታየውን ያስተካክሉ።' : 'Customize what is visible on your screen when passengers sit next to you in the cab. All preferences are saved automatically.'}
               </p>
             </div>
           </div>
@@ -193,10 +194,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <div className="p-4 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-extrabold">
-                  Hide earnings balance on Home
+                  {lang === 'am' ? 'በመነሻ ገጽ ላይ ጠቅላላ ገቢን ደብቅ' : 'Hide earnings balance on Home'}
                 </p>
                 <p className="text-xs text-[#8E9BAE] mt-0.5">
-                  Masks your daily total and Telebirr/cash breakdown as ****
+                  {lang === 'am' ? 'የቀን ድምርን እና የቴሌብር/ጥሬ ገንዘብ ክፍፍልን በ **** ይሸፍናል' : 'Masks your daily total and Telebirr/cash breakdown as ****'}
                 </p>
               </div>
               <button
@@ -230,10 +231,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <div className="p-4 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-extrabold">
-                  Mask passenger last names
+                  {lang === 'am' ? 'የተሳፋሪዎችን የአባት ስም ደብቅ' : 'Mask passenger last names'}
                 </p>
                 <p className="text-xs text-[#8E9BAE] mt-0.5">
-                  Shows payer names as &ldquo;Natnael B.&rdquo; across lists &amp; receipts
+                  {lang === 'am' ? 'የከፋዮችን ስም "ናትናኤል በ." በማለት ያሳያል' : 'Shows payer names as "Natnael B." across lists & receipts'}
                 </p>
               </div>
               <button
@@ -268,10 +269,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <div className="p-4 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-extrabold">
-                  Redact passenger phone numbers
+                  {lang === 'am' ? 'የተሳፋሪ ስልክ ቁጥሮችን ሸፍን' : 'Redact passenger phone numbers'}
                 </p>
                 <p className="text-xs text-[#8E9BAE] mt-0.5">
-                  Hides middle digits (2519••••••47) inside transaction sheets
+                  {lang === 'am' ? 'የስልክ ቁጥር መካከለኛ አሃዞችን (2519••••••47) ይሸፍናል' : 'Hides middle digits (2519••••••47) inside transaction sheets'}
                 </p>
               </div>
               <button
@@ -305,10 +306,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <div className="p-4 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-extrabold">
-                  Discreet pop-up payment alerts
+                  {lang === 'am' ? 'ሚስጥራዊ የክፍያ ማሳወቂያ' : 'Discreet pop-up payment alerts'}
                 </p>
                 <p className="text-xs text-[#8E9BAE] mt-0.5">
-                  Confirms incoming payment without showing the exact ETB amount
+                  {lang === 'am' ? 'የተከፈለውን ትክክለኛ የብር መጠን ሳይጠቅስ ክፍያ መድረሱን ያሳውቃል' : 'Confirms incoming payment without showing the exact ETB amount'}
                 </p>
               </div>
               <button
@@ -346,7 +347,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               <span className="font-bold text-[#5CA4F8]">
                 {smsProcessingRecords.length}
               </span>{' '}
-              local SMS audit fingerprints cached
+              {lang === 'am' ? 'የተቀመጡ የSMS መረጃዎች' : 'local SMS audit fingerprints cached'}
             </div>
 
             <button
@@ -362,7 +363,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>
-                {logsClearedFeedback ? 'Audit Logs Cleared' : 'Clear SMS Logs'}
+                {logsClearedFeedback
+                  ? (lang === 'am' ? 'የSMS መዝገብ ጸድቷል' : 'Audit Logs Cleared')
+                  : (lang === 'am' ? 'የSMS መዝገብ አጽዳ' : 'Clear SMS Logs')}
               </span>
             </button>
           </div>
@@ -391,7 +394,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   // ============================================================================
   // MAIN PROFILE & SETTINGS SCREEN
   // ============================================================================
-  const lang = (settings.language || 'en') as Language;
 
   return (
     <div className="space-y-4 pt-3">
@@ -402,7 +404,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             isDark ? 'text-white' : 'text-[#0F172A]'
           }`}
         >
-          Profile
+          {lang === 'am' ? 'መገለጫ' : 'Profile'}
         </h1>
         <ThemeToggleButton />
       </div>
@@ -462,7 +464,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               : 'text-[#8E9BAE]'
           }`}
         >
-          Overview
+          {getTranslation('tab_overview', lang)}
         </button>
 
         <button
@@ -476,7 +478,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               : 'text-[#8E9BAE]'
           }`}
         >
-          Settings
+          {getTranslation('tab_settings', lang)}
         </button>
       </div>
 
@@ -505,7 +507,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   isDark ? 'text-white' : 'text-[#0F172A]'
                 }`}
               >
-                Language
+                {getTranslation('language', lang)}
               </span>
               <span className="text-sm text-[#8E9BAE] flex items-center gap-1">
                 {settings.language === 'en' ? 'English' : 'አማርኛ (Amharic)'}
@@ -529,10 +531,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   isDark ? 'text-white' : 'text-[#0F172A]'
                 }`}
               >
-                Notifications
+                {getTranslation('notifications', lang)}
               </span>
               <span className="text-sm text-[#8E9BAE] flex items-center gap-1">
-                {settings.notification_sound ? 'On' : 'Off'}
+                {settings.notification_sound ? getTranslation('on', lang) : getTranslation('off', lang)}
                 <ChevronRight className="w-4 h-4" />
               </span>
             </button>
@@ -554,12 +556,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   isDark ? 'text-white' : 'text-[#0F172A]'
                 }`}
               >
-                Location access
+                {getTranslation('location_access', lang)}
               </span>
               <span className="text-sm text-[#8E9BAE] flex items-center gap-1">
                 {settings.location_permission_status === 'GRANTED'
-                  ? 'Allowed'
-                  : 'Denied'}
+                  ? getTranslation('allowed', lang)
+                  : getTranslation('denied', lang)}
                 <ChevronRight className="w-4 h-4" />
               </span>
             </button>
@@ -581,12 +583,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   isDark ? 'text-white' : 'text-[#0F172A]'
                 }`}
               >
-                SMS access (sender 127)
+                {lang === 'am' ? 'የኤስኤምኤስ ፈቃድ (127)' : 'SMS access (sender 127)'}
               </span>
               <span className="text-sm text-[#8E9BAE] flex items-center gap-1">
                 {settings.sms_permission_status === 'GRANTED'
-                  ? 'Allowed'
-                  : 'Denied'}
+                  ? getTranslation('allowed', lang)
+                  : getTranslation('denied', lang)}
                 <ChevronRight className="w-4 h-4" />
               </span>
             </button>
@@ -602,7 +604,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   isDark ? 'text-white' : 'text-[#0F172A]'
                 }`}
               >
-                Export data
+                {getTranslation('export_csv', lang)}
               </span>
               <span className="text-sm text-[#8E9BAE] flex items-center gap-1">
                 CSV
@@ -621,12 +623,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   isDark ? 'text-white' : 'text-[#0F172A]'
                 }`}
               >
-                Privacy
+                {getTranslation('privacy_settings', lang)}
               </span>
               <span className="text-sm text-[#8E9BAE] flex items-center gap-1.5">
                 {activePrivacyCount > 0 && (
                   <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-[#2CD48D]/15 text-[#2CD48D]">
-                    {activePrivacyCount} active
+                    {lang === 'am' ? `${activePrivacyCount} በርቷል` : `${activePrivacyCount} active`}
                   </span>
                 )}
                 <ChevronRight className="w-4 h-4" />
@@ -644,7 +646,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   isDark ? 'text-white' : 'text-[#0F172A]'
                 }`}
               >
-                About TripBirr
+                {getTranslation('about_tripbirr', lang)}
               </span>
               <span className="text-sm text-[#8E9BAE] flex items-center gap-1">
                 v1.0
@@ -789,7 +791,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                       v1.0.0
                     </span>
                   </h3>
-                  <p className="text-xs text-[#8E9BAE]">Smart Telebirr &amp; Cash Fare Ledger</p>
+                  <p className="text-xs text-[#8E9BAE]">
+                    {lang === 'am' ? 'ዘመናዊ የቴሌብር እና ጥሬ ገንዘብ የጉዞ መዝገብ' : 'Smart Telebirr & Cash Fare Ledger'}
+                  </p>
                 </div>
               </div>
               <button
@@ -802,17 +806,23 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             </div>
 
             <p className="text-xs text-[#8E9BAE] leading-relaxed">
-              Purpose-built for Ethiopian taxi, minibus, Lada, ride-hail, and Bajaj drivers. Eliminates verification delays and fare disputes by automatically capturing incoming Telebirr (127) SMS payments, linking them to GPS routes, and calculating cash and digital revenue 100% offline.
+              {lang === 'am'
+                ? 'ለኢትዮጵያ ታክሲ፣ ሚኒባስ፣ ላዳ፣ ራይድ እና ባጃጅ አሽከርካሪዎች የተዘጋጀ። የ127 ቴሌብር ክፍያ SMS በመቀበል፣ ከGPS መስመር ጋር በማገናኘት እና የጥሬ ገንዘብ ገቢን ያለ ኢንተርኔት 100% በስልክዎ ላይ ይመዘግባል።'
+                : 'Purpose-built for Ethiopian taxi, minibus, Lada, ride-hail, and Bajaj drivers. Eliminates verification delays and fare disputes by automatically capturing incoming Telebirr (127) SMS payments, linking them to GPS routes, and calculating cash and digital revenue 100% offline.'}
             </p>
 
             <div className="space-y-2 text-xs">
               <div className={`p-3 rounded-xl ${isDark ? 'bg-[#1E293B]' : 'bg-slate-50'}`}>
-                <p className="font-bold text-[#2CD48D]">100% Offline Ledger</p>
-                <p className="text-[11px] text-[#8E9BAE] mt-0.5">Your trip logs and balances never leave your phone.</p>
+                <p className="font-bold text-[#2CD48D]">{lang === 'am' ? 'ያለ ኢንተርኔት የሚሰራ መዝገብ' : '100% Offline Ledger'}</p>
+                <p className="text-[11px] text-[#8E9BAE] mt-0.5">
+                  {lang === 'am' ? 'የጉዞ መዝገቦችዎ እና ሂሳብዎ ከስልክዎ አይወጡም።' : 'Your trip logs and balances never leave your phone.'}
+                </p>
               </div>
               <div className={`p-3 rounded-xl ${isDark ? 'bg-[#1E293B]' : 'bg-slate-50'}`}>
-                <p className="font-bold text-[#5CA4F8]">Official 127 SMS Detection</p>
-                <p className="text-[11px] text-[#8E9BAE] mt-0.5">Detects authentic receipts; personal SMS messages are never touched.</p>
+                <p className="font-bold text-[#5CA4F8]">{lang === 'am' ? 'የ127 SMS ቅበላ' : 'Official 127 SMS Detection'}</p>
+                <p className="text-[11px] text-[#8E9BAE] mt-0.5">
+                  {lang === 'am' ? 'ትክክለኛ ደረሰኞችን ይለያል፤ የግል መልዕክቶች በጭራሽ አይነበቡም።' : 'Detects authentic receipts; personal SMS messages are never touched.'}
+                </p>
               </div>
             </div>
 
