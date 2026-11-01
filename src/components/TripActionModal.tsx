@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { Crosshair, MapPin, Navigation, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { CheckCircle2, Crosshair, MapPin, Navigation, X } from 'lucide-react';
 import { LocationSource, TripRecord } from '../database/schema';
 import {
   ADDIS_ABABA_LANDMARKS,
   captureSingleGpsPoint,
 } from '../services/location/locationService';
+import { useTripBirrStore } from '../store/useTripBirrStore';
 
 interface TripActionModalProps {
   mode: 'START' | 'END';
@@ -40,6 +41,8 @@ export const TripActionModal: React.FC<TripActionModalProps> = ({
   onConfirmStart,
   onConfirmEnd,
 }) => {
+  const { settings } = useTripBirrStore();
+
   const [placeName, setPlaceName] = useState(
     mode === 'START' ? '4 Kilo, Addis Ababa' : 'Piassa, Addis Ababa'
   );
@@ -53,7 +56,21 @@ export const TripActionModal: React.FC<TripActionModalProps> = ({
   const [source, setSource] = useState<LocationSource>(LocationSource.GPS);
   const [notes, setNotes] = useState(activeTrip?.notes || '');
   const [isCapturingGps, setIsCapturingGps] = useState(false);
+  const [gpsStatusMsg, setGpsStatusMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setPlaceName(mode === 'START' ? '4 Kilo, Addis Ababa' : 'Piassa, Addis Ababa');
+      setLatitude(mode === 'START' ? 9.0331 : 9.0358);
+      setLongitude(mode === 'START' ? 38.7636 : 38.7524);
+      setAccuracy(12.0);
+      setSource(LocationSource.GPS);
+      setNotes(activeTrip?.notes || '');
+      setGpsStatusMsg(null);
+      setErrorMsg(null);
+    }
+  }, [isOpen, mode, activeTrip]);
 
   if (!isOpen) return null;
 
@@ -63,24 +80,43 @@ export const TripActionModal: React.FC<TripActionModalProps> = ({
     setLongitude(landmark.longitude);
     setAccuracy(11.5);
     setSource(LocationSource.GPS);
+    setGpsStatusMsg(`Selected hub: ${landmark.name} (${landmark.latitude.toFixed(4)}°N, ${landmark.longitude.toFixed(4)}°E)`);
     setErrorMsg(null);
   };
 
   const handleCaptureGps = async () => {
-    setIsCapturingGps(true);
     setErrorMsg(null);
+    setGpsStatusMsg(null);
+
+    if (settings.location_permission_status === 'DENIED') {
+      setErrorMsg(
+        'Location permission is currently DENIED in Settings. You can still type a location manually or enable GPS in Settings.'
+      );
+      setSource(LocationSource.MANUAL);
+      return;
+    }
+
+    setIsCapturingGps(true);
     const captured = await captureSingleGpsPoint(placeName);
     setPlaceName(captured.placeName);
     setLatitude(captured.latitude);
     setLongitude(captured.longitude);
     setAccuracy(captured.accuracy);
     setSource(LocationSource.GPS);
+    setGpsStatusMsg(
+      captured.statusMessage ||
+        `GPS point captured: ${captured.placeName}`
+    );
     setIsCapturingGps(false);
   };
 
   const handleManualInput = (val: string) => {
     setPlaceName(val);
+    setLatitude(null);
+    setLongitude(null);
+    setAccuracy(null);
     setSource(LocationSource.MANUAL);
+    setGpsStatusMsg(null);
     setErrorMsg(null);
   };
 
@@ -164,12 +200,20 @@ export const TripActionModal: React.FC<TripActionModalProps> = ({
                 type="button"
                 onClick={handleCaptureGps}
                 disabled={isCapturingGps}
-                className="h-11 px-3.5 rounded-xl bg-[#DDF5E9] dark:bg-[#1D352D] text-[#123C35] dark:text-[#43C99A] text-xs font-semibold flex items-center gap-1.5 hover:opacity-90 transition-opacity whitespace-nowrap shrink-0"
+                className="h-11 px-3.5 rounded-xl bg-[#DDF5E9] dark:bg-[#1D352D] text-[#123C35] dark:text-[#43C99A] text-xs font-semibold flex items-center gap-1.5 hover:opacity-90 active:scale-[0.98] transition-all whitespace-nowrap shrink-0 cursor-pointer"
               >
-                <Crosshair className="w-4 h-4" />
+                <Crosshair className={`w-4 h-4 ${isCapturingGps ? 'animate-spin' : ''}`} />
                 {isCapturingGps ? 'Locating...' : 'Use GPS'}
               </button>
             </div>
+
+            {gpsStatusMsg && (
+              <div className="mt-2 p-2.5 rounded-xl bg-[#DDF5E9]/60 dark:bg-[#1D352D]/60 border border-[#16866A]/30 flex items-center gap-2 text-xs text-[#123C35] dark:text-[#EDF6F0]">
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#16866A] dark:text-[#43C99A] shrink-0" />
+                <span className="font-mono text-[11px]">{gpsStatusMsg}</span>
+              </div>
+            )}
+
             {errorMsg && (
               <p className="text-xs text-[#D9534F] mt-1.5 font-medium">{errorMsg}</p>
             )}
