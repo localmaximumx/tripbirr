@@ -11,7 +11,9 @@ import {
 import { TransactionRecord, TripRecord, TripStatus } from '../database/schema';
 import {
   ADDIS_ABABA_LANDMARKS,
+  calculateDistanceMeters,
   captureSingleGpsPoint,
+  reverseGeocodeWithOfflineFallback,
 } from '../services/location/locationService';
 import { formatMinorUnits } from '../utils/formatters';
 
@@ -22,26 +24,17 @@ interface LiveTripMapProps {
   compact?: boolean;
 }
 
-// Bounding box for central Addis Ababa coordinate projection (Lat 8.975..9.050, Lng 38.720..38.860)
-const MIN_LAT = 8.975;
-const MAX_LAT = 9.050;
-const MIN_LNG = 38.720;
-const MAX_LNG = 38.860;
-
-function projectToSvg(lat: number, lng: number): { x: number; y: number } {
-  const clampedLat = Math.max(MIN_LAT, Math.min(MAX_LAT, lat));
-  const clampedLng = Math.max(MIN_LNG, Math.min(MAX_LNG, lng));
-
-  const x = ((clampedLng - MIN_LNG) / (MAX_LNG - MIN_LNG)) * 720 + 40;
-  // Invert Y because higher latitude is further north (top of SVG)
-  const y = (1 - (clampedLat - MIN_LAT) / (MAX_LAT - MIN_LAT)) * 300 + 30;
-  return { x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) };
-}
+// Default bounding box for Addis Ababa coordinate projection
+const BASE_MIN_LAT = 8.975;
+const BASE_MAX_LAT = 9.055;
+const BASE_MIN_LNG = 38.715;
+const BASE_MAX_LNG = 38.865;
 
 // Major Addis Ababa arterial corridors for offline vector reference
 const ADDIS_ARTERIAL_CORRIDORS = [
-  // North-South: 4 Kilo -> Arat Kilo -> Meskel Square -> Gotera
+  // North-South: 6 Kilo -> 4 Kilo -> Piassa -> Kazanchis -> Meskel Square -> Gotera
   [
+    { lat: 9.0478, lng: 38.7614 }, // 6 Kilo
     { lat: 9.0358, lng: 38.7524 }, // Piassa
     { lat: 9.0331, lng: 38.7636 }, // 4 Kilo
     { lat: 9.0168, lng: 38.7675 }, // Kazanchis
@@ -57,7 +50,7 @@ const ADDIS_ARTERIAL_CORRIDORS = [
     { lat: 9.0205, lng: 38.8024 }, // Megenagna
     { lat: 9.0229, lng: 38.8467 }, // CMC Michael
   ],
-  // Bole Avenue: Meskel Square -> Bole Medhanialem
+  // Bole Avenue: Sarbet -> Mexico -> Meskel Square -> Bole Medhanialem
   [
     { lat: 8.9942, lng: 38.7378 }, // Sarbet
     { lat: 9.0104, lng: 38.7445 }, // Mexico
@@ -78,13 +71,13 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
   const startLng = trip.start_longitude ?? 38.7636;
 
   const [liveLat, setLiveLat] = useState<number>(
-    trip.end_latitude ?? startLat + 0.0022
+    trip.end_latitude ?? startLat
   );
   const [liveLng, setLiveLng] = useState<number>(
-    trip.end_longitude ?? startLng - 0.0035
+    trip.end_longitude ?? startLng
   );
   const [liveAccuracy, setLiveAccuracy] = useState<number>(
-    trip.start_location_accuracy ?? 11.2
+    trip.start_location_accuracy ?? 10.0
   );
   const [livePlaceLabel, setLivePlaceLabel] = useState<string>(
     trip.end_location_name || trip.start_location_name
@@ -95,6 +88,21 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
   const [trailPoints, setTrailPoints] = useState<{ lat: number; lng: number }[]>([
     { lat: startLat, lng: startLng },
   ]);
+
+  // Dynamically expand projection bounds so real device coordinates are never clamped off-screen
+  const minLat = Math.min(BASE_MIN_LAT, startLat - 0.008, liveLat - 0.008);
+  const maxLat = Math.max(BASE_MAX_LAT, startLat + 0.008, liveLat + 0.008);
+  const minLng = Math.min(BASE_MIN_LNG, startLng - 0.01, liveLng - 0.01);
+  const maxLng = Math.max(BASE_MAX_LNG, startLng + 0.01, liveLng + 0.01);
+
+  const projectToSvg = (lat: number, lng: number): { x: number; y: number } => {
+    const clampedLat = Math.max(minLat, Math.min(maxLat, lat));
+    const clampedLng = Math.max(minLng, Math.min(maxLng, lng));
+
+    const x = ((clampedLng - minLng) / (maxLng - minLng)) * 720 + 40;
+    const y = (1 - (clampedLat - minLat) / (maxLat - minLat)) * 300 + 30;
+    return { x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) };
+  };
 
   // Reset coordinates when trip changes
   useEffect(() => {
@@ -132,10 +140,10 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
     }
 
     const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
+      async (pos) => {
         const nextLat = Number(pos.coords.latitude.toFixed(6));
         const nextLng = Number(pos.coords.longitude.toFixed(6));
-        const nextAcc = pos.coords.accuracy ? Number(pos.coords.accuracy.toFixed(1)) : 10.5;
+        const nextAcc = pos.coords.accuracy ? Number(pos.coords.accuracy.toFixed(1)) : 10.0;
         setLiveLat(nextLat);
         setLiveLng(nextLng);
         setLiveAccuracy(nextAcc);
@@ -150,11 +158,13 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
           }
           return prev;
         });
+        const resolved = await reverseGeocodeWithOfflineFallback(nextLat, nextLng);
+        setLivePlaceLabel(resolved);
       },
       () => {
-        // Ignore watch errors in sandboxed iframe; manual GPS refresh button handles simulation
+        // Ignore watch errors if browser blocks continuous watch
       },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 8000 }
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
     );
 
     return () => {
@@ -164,11 +174,11 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
 
   const handleRefreshLiveGps = async () => {
     setIsUpdatingGps(true);
-    const captured = await captureSingleGpsPoint(livePlaceLabel);
-    if (captured.latitude && captured.longitude) {
+    const captured = await captureSingleGpsPoint();
+    if (captured.latitude !== null && captured.longitude !== null) {
       setLiveLat(captured.latitude);
       setLiveLng(captured.longitude);
-      setLiveAccuracy(captured.accuracy || 10.5);
+      setLiveAccuracy(captured.accuracy || 10.0);
       setLivePlaceLabel(captured.placeName);
       setTrailPoints((prev) => [
         ...prev.slice(-12),
@@ -180,6 +190,10 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
 
   const startPt = projectToSvg(startLat, startLng);
   const currentPt = projectToSvg(liveLat, liveLng);
+
+  const displacementKm = (
+    calculateDistanceMeters(startLat, startLng, liveLat, liveLng) / 1000
+  ).toFixed(2);
 
   // Compute viewBox based on zoomLevel centered around midpoint between start and current
   const centerX = (startPt.x + currentPt.x) / 2;
@@ -203,7 +217,9 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
           <div>
             <div className="flex items-center gap-2 text-xs font-bold text-white">
               <span>
-                {isTripActive ? 'Live Active Trip Map' : 'Trip Endpoint Map'}
+                {isTripActive
+                  ? 'Live Active Trip Map'
+                  : 'Completed Trip Endpoint Map (react-native-maps)'}
               </span>
               <span aria-hidden="true" className="text-white/40">
                 ·
@@ -211,11 +227,15 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
               <span className="font-mono text-[#43C99A]">
                 {liveLat.toFixed(4)}°N, {liveLng.toFixed(4)}°E (±{liveAccuracy}m)
               </span>
+              <span aria-hidden="true" className="text-white/40">
+                ·
+              </span>
+              <span className="font-mono text-[#FFE082]">{displacementKm} km</span>
             </div>
             <p className="text-[11px] text-[#DDF5E9]/75 truncate max-w-md">
               {isTripActive
                 ? `Start: ${trip.start_location_name.replace(', Addis Ababa', '')} → Current: ${livePlaceLabel.replace(', Addis Ababa', '')}`
-                : `${trip.start_location_name.replace(', Addis Ababa', '')} → ${(trip.end_location_name || 'Completed').replace(', Addis Ababa', '')}`}
+                : `Start (${startLat.toFixed(4)}, ${startLng.toFixed(4)}) → End (${liveLat.toFixed(4)}, ${liveLng.toFixed(4)})`}
             </p>
           </div>
         </div>
@@ -355,6 +375,18 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
                 </g>
               );
             })}
+
+            {/* Start-to-End Dashed Polyline Connector */}
+            <line
+              x1={startPt.x}
+              y1={startPt.y}
+              x2={currentPt.x}
+              y2={currentPt.y}
+              stroke="#43C99A"
+              strokeWidth="2.5"
+              strokeDasharray="7 5"
+              strokeOpacity="0.85"
+            />
 
             {/* Observed GPS Breadcrumb Points (only when multiple live GPS fixes were captured) */}
             {trailPoints.length > 1 &&

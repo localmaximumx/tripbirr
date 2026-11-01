@@ -1,0 +1,17 @@
+{
+  "name": "TripBirr — Telebirr Driver Companion",
+  "short_name": "TripBirr",
+  "description": "Offline-first Android companion for Ethiopian drivers to automatically detect Telebirr 127 SMS payments, associate payments with trips, and track per-trip earnings.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#101A17",
+  "theme_color": "#123C35",
+  "icons": [
+    {
+      "src": "/tripbirr-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

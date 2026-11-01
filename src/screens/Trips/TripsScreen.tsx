@@ -24,6 +24,7 @@ import {
   formatMinorUnits,
 } from '../../utils/formatters';
 import { LiveTripMap } from '../../components/LiveTripMap';
+import { calculateDistanceMeters } from '../../services/location/locationService';
 
 interface TripsScreenProps {
   onOpenTripModal: (mode: 'START' | 'END') => void;
@@ -102,7 +103,7 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
             Trips & Payment Associations
           </h1>
           <p className="text-xs text-[#75847D] dark:text-[#94A8A0] mt-0.5">
-            Record start and destination points and manage multi-passenger Telebirr collections per trip
+            Record start and destination points and visualize completed trip coordinates
           </p>
         </div>
 
@@ -165,6 +166,21 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
             filteredTrips.map((trip) => {
               const summary = calculateTripTotalMinorUnits(trip.id, transactions);
               const isSelected = selectedTrip?.id === trip.id;
+              const hasBothCoords =
+                typeof trip.start_latitude === 'number' &&
+                typeof trip.start_longitude === 'number' &&
+                typeof trip.end_latitude === 'number' &&
+                typeof trip.end_longitude === 'number';
+              const distKm = hasBothCoords
+                ? (
+                    calculateDistanceMeters(
+                      trip.start_latitude!,
+                      trip.start_longitude!,
+                      trip.end_latitude!,
+                      trip.end_longitude!
+                    ) / 1000
+                  ).toFixed(2)
+                : null;
 
               return (
                 <button
@@ -175,7 +191,7 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
                     setIsEditingTrip(false);
                     setConfirmDeleteId(null);
                   }}
-                  className={`w-full text-left p-5 rounded-2xl transition-colors border ${
+                  className={`w-full text-left p-5 rounded-2xl transition-colors border cursor-pointer ${
                     isSelected
                       ? 'bg-white dark:bg-[#192722] border-[#16866A] dark:border-[#43C99A] shadow-xs'
                       : 'bg-white/80 dark:bg-[#192722]/70 border-[#E3EAE5] dark:border-[#253831] hover:border-[#16866A]/50'
@@ -209,6 +225,21 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
                       </p>
                     </div>
                   </div>
+
+                  {/* Start & End Coordinate Summary Row */}
+                  {hasBothCoords && (
+                    <div className="mt-2.5 px-2.5 py-1.5 rounded-lg bg-[#F5F7F5] dark:bg-[#101A17] text-[11px] font-mono text-[#75847D] dark:text-[#94A8A0] flex flex-wrap items-center justify-between gap-2">
+                      <span>
+                        {trip.start_latitude!.toFixed(4)}°N, {trip.start_longitude!.toFixed(4)}°E →{' '}
+                        {trip.end_latitude!.toFixed(4)}°N, {trip.end_longitude!.toFixed(4)}°E
+                      </span>
+                      {distKm && (
+                        <span className="text-[#16866A] dark:text-[#43C99A] font-semibold">
+                          {distKm} km
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-2 text-xs text-[#75847D] dark:text-[#94A8A0] mt-3 pt-3 border-t border-[#E3EAE5] dark:border-[#253831]">
                     <span className="font-mono tabular-nums">

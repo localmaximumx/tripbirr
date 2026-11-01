@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import {
+  Car,
   CheckCircle2,
   Code2,
   Database,
   Download,
+  Edit3,
   RotateCcw,
   ShieldCheck,
+  User,
   Volume2,
   XCircle,
 } from 'lucide-react';
@@ -14,11 +17,20 @@ import { runAutomatedVerificationSuite } from '../../__tests__/smsAndDatabaseSui
 import { NATIVE_ANDROID_KOTLIN_FILES } from '../../constants/androidKotlinSources';
 import { exportSqliteSqlDump } from '../../database/database';
 import { speakPaymentAnnouncement } from '../../services/notifications/notificationService';
+import { formatMinorUnits } from '../../utils/formatters';
+import { TripBirrLogo } from '../../components/TripBirrLogo';
 
-export const SettingsScreen: React.FC = () => {
+interface SettingsScreenProps {
+  onOpenDriverProfile: () => void;
+}
+
+export const SettingsScreen: React.FC<SettingsScreenProps> = ({
+  onOpenDriverProfile,
+}) => {
   const {
     schemaVersion,
     appliedMigrations,
+    driverProfile,
     trips,
     transactions,
     smsProcessingRecords,
@@ -36,10 +48,15 @@ export const SettingsScreen: React.FC = () => {
 
   const passedCount = testResults.filter((r) => r.passed).length;
 
+  const latestBalanceTx = transactions.find(
+    (tx) => tx.account_balance_minor_units !== null
+  );
+
   const handleDownloadSqliteDump = () => {
     const sqlDump = exportSqliteSqlDump({
       schemaVersion,
       appliedMigrations,
+      driverProfile,
       trips,
       transactions,
       smsProcessingRecords,
@@ -54,16 +71,141 @@ export const SettingsScreen: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const initials = driverProfile.full_name
+    .split(' ')
+    .map((p) => p[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-[#172B25] dark:text-[#EDF6F0]">
-          Settings, Permissions & Native Android Architecture
+          Driver Profile, Settings & React Native Android Source
         </h1>
         <p className="text-xs text-[#75847D] dark:text-[#94A8A0] mt-0.5">
-          Configure payment notifications, voice announcements, permissions, and inspect the Kotlin + SQLite engine
+          Manage your driver profile, Telebirr 127 notification preferences, permissions, and React Native + Kotlin modules
         </p>
       </div>
+
+      {/* Android App Launcher Icon & Identity Card */}
+      <section className="rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] p-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-center gap-5">
+            <TripBirrLogo size={72} shape="squircle" className="shadow-md rounded-2xl" />
+            <div>
+              <span className="text-xs font-semibold text-[#16866A] dark:text-[#43C99A]">
+                Android Adaptive App Icon (API 26+)
+              </span>
+              <h2 className="text-lg font-bold text-[#172B25] dark:text-[#EDF6F0] mt-0.5">
+                TripBirr — Telebirr Driver Companion
+              </h2>
+              <p className="text-xs text-[#75847D] dark:text-[#94A8A0] mt-1 max-w-xl">
+                Crafted in Ethiopian emerald, mint, and gold — combining an Addis Ababa arterial route ribbon, a GPS endpoint pin with compass needle, and Telebirr 127 wireless payment waves.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 shrink-0">
+            <div className="flex items-center gap-3 bg-[#F5F7F5] dark:bg-[#101A17] px-3.5 py-2.5 rounded-xl border border-[#E3EAE5] dark:border-[#253831]">
+              <div className="flex flex-col items-center gap-1">
+                <TripBirrLogo size={40} shape="squircle" />
+                <span className="text-[10px] font-mono text-[#75847D]">Squircle</span>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <TripBirrLogo size={40} shape="circle" />
+                <span className="text-[10px] font-mono text-[#75847D]">Round</span>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <TripBirrLogo size={40} shape="rounded-square" />
+                <span className="text-[10px] font-mono text-[#75847D]">Legacy</span>
+              </div>
+            </div>
+
+            <a
+              href="/tripbirr-icon.svg"
+              download="tripbirr-icon.svg"
+              className="min-h-[42px] px-3.5 py-2 rounded-xl bg-[#123C35] text-white dark:bg-[#43C99A] dark:text-[#101A17] text-xs font-semibold flex items-center gap-1.5 hover:opacity-95 transition-opacity whitespace-nowrap shrink-0"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Icon SVG
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* Prominent Driver Profile Section */}
+      <section className="rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[#E3EAE5] dark:border-[#253831]">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-[#123C35] text-[#43C99A] font-bold text-lg flex items-center justify-center shrink-0">
+              {initials}
+            </div>
+            <div>
+              <div className="flex items-center gap-2 text-xs text-[#16866A] dark:text-[#43C99A] font-semibold">
+                <User className="w-3.5 h-3.5" />
+                <span>Verified Telebirr Driver Profile</span>
+                <span aria-hidden="true">·</span>
+                <span className="font-mono">Matches &quot;Dear {driverProfile.sms_greeting_name}&quot;</span>
+              </div>
+              <h2 className="text-xl font-bold text-[#172B25] dark:text-[#EDF6F0] mt-0.5">
+                {driverProfile.full_name}
+              </h2>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-[#75847D] dark:text-[#94A8A0] mt-0.5">
+                <span className="font-mono">{driverProfile.telebirr_phone}</span>
+                <span aria-hidden="true">·</span>
+                <span className="font-mono">{driverProfile.vehicle_plate}</span>
+                <span aria-hidden="true">·</span>
+                <span>{driverProfile.sub_city}</span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onOpenDriverProfile}
+            className="min-h-[44px] px-4 py-2.5 rounded-xl bg-[#16866A] dark:bg-[#43C99A] text-white dark:text-[#101A17] text-xs font-bold flex items-center gap-2 hover:opacity-95 transition-opacity whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <Edit3 className="w-4 h-4" />
+            Edit Driver Profile
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-5 text-xs">
+          <div>
+            <p className="text-[#75847D] dark:text-[#94A8A0]">Vehicle & Plate</p>
+            <p className="font-semibold text-[#172B25] dark:text-[#EDF6F0] mt-1 flex items-center gap-1.5">
+              <Car className="w-3.5 h-3.5 text-[#16866A] dark:text-[#43C99A]" />
+              {driverProfile.vehicle_type.replace('_', ' ')} ({driverProfile.vehicle_plate})
+            </p>
+          </div>
+          <div>
+            <p className="text-[#75847D] dark:text-[#94A8A0]">Primary Corridor</p>
+            <p className="font-semibold text-[#172B25] dark:text-[#EDF6F0] mt-1">
+              {driverProfile.primary_corridor}
+            </p>
+          </div>
+          <div>
+            <p className="text-[#75847D] dark:text-[#94A8A0]">Daily Earnings Goal</p>
+            <p className="font-mono font-bold text-[#172B25] dark:text-[#EDF6F0] mt-1">
+              {formatMinorUnits(driverProfile.daily_target_minor_units, settings.currency_display)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[#75847D] dark:text-[#94A8A0]">Last E-Money Balance (SMS 127)</p>
+            <p className="font-mono font-bold text-[#22A06B] dark:text-[#43C99A] mt-1">
+              {latestBalanceTx?.account_balance_minor_units !== null &&
+              latestBalanceTx?.account_balance_minor_units !== undefined
+                ? formatMinorUnits(
+                    latestBalanceTx.account_balance_minor_units,
+                    settings.currency_display
+                  )
+                : '—'}
+            </p>
+          </div>
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Preferences, Notifications & Permissions (6 cols) */}
@@ -249,6 +391,7 @@ export const SettingsScreen: React.FC = () => {
 
             <p className="text-xs text-[#75847D] dark:text-[#94A8A0]">
               All financial records are stored locally in normalized tables (
+              <span className="font-mono">driver_profile</span>,{' '}
               <span className="font-mono">trips</span>,{' '}
               <span className="font-mono">transactions</span>,{' '}
               <span className="font-mono">sms_processing_records</span>,{' '}
@@ -276,63 +419,18 @@ export const SettingsScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Column: Automated Unit Test Suite & Native Kotlin Files (6 cols) */}
+        {/* Right Column: Automated Unit Test Suite & React Native + Kotlin Files (6 cols) */}
         <div className="lg:col-span-6 space-y-6">
-          {/* Automated Verification Test Suite (Section 19) */}
-          <div className="p-6 rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#E3EAE5] dark:border-[#253831]">
-              <div>
-                <h2 className="text-base font-bold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-[#22A06B] dark:text-[#43C99A]" />
-                  SMS Parser & Database Unit Test Suite ({passedCount}/{testResults.length} Passed)
-                </h2>
-                <p className="text-xs text-[#75847D] dark:text-[#94A8A0]">
-                  Verifies Section 5 & Section 19 requirements against live parser and financial logic
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setTestResults(runAutomatedVerificationSuite())}
-                className="min-h-[36px] px-3 py-1.5 rounded-lg bg-[#F5F7F5] dark:bg-[#101A17] text-xs font-semibold text-[#16866A] dark:text-[#43C99A]"
-              >
-                Re-run Suite
-              </button>
-            </div>
-
-            <div className="max-h-72 overflow-y-auto divide-y divide-[#E3EAE5] dark:divide-[#253831] pr-1">
-              {testResults.map((test) => (
-                <div key={test.id} className="py-2.5 text-xs">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-1.5">
-                      {test.passed ? (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#22A06B] shrink-0" />
-                      ) : (
-                        <XCircle className="w-3.5 h-3.5 text-[#D9534F] shrink-0" />
-                      )}
-                      <span className="font-mono text-[#75847D]">{test.id}</span>
-                      <span>{test.name}</span>
-                    </span>
-                    <span className="font-mono text-[11px] text-[#22A06B] dark:text-[#43C99A] shrink-0">
-                      {test.passed ? 'PASS' : 'FAIL'}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#75847D] dark:text-[#94A8A0] font-mono mt-0.5 pl-5">
-                    {test.details}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Native Android Kotlin Source Code Inspector */}
+          {/* React Native CLI + Native Android Kotlin Source Code Inspector */}
           <div className="p-6 rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] space-y-4">
             <div>
               <h2 className="text-base font-bold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-2">
                 <Code2 className="w-4 h-4 text-[#16866A] dark:text-[#43C99A]" />
-                Native Android Kotlin Modules (android/app/src/main/...)
+                React Native CLI & Native Android Kotlin Source Files
               </h2>
               <p className="text-xs text-[#75847D] dark:text-[#94A8A0] mt-0.5">
-                Production Kotlin BroadcastReceiver and React Native bridge modules generated in workspace
+                Production <span className="font-mono">react-native/</span> and{' '}
+                <span className="font-mono">android/app/src/main/</span> files generated in this repository
               </p>
             </div>
 
@@ -363,6 +461,52 @@ export const SettingsScreen: React.FC = () => {
               <pre className="mt-3 p-3 rounded-lg bg-[#101A17] text-[#EDF6F0] font-mono text-[11px] overflow-x-auto max-h-64">
                 {NATIVE_ANDROID_KOTLIN_FILES[selectedKotlinFileIndex].code}
               </pre>
+            </div>
+          </div>
+
+          {/* Automated Verification Test Suite (Section 19) */}
+          <div className="p-6 rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E3EAE5] dark:border-[#253831]">
+              <div>
+                <h2 className="text-base font-bold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-[#22A06B] dark:text-[#43C99A]" />
+                  SMS Parser & Database Unit Test Suite ({passedCount}/{testResults.length} Passed)
+                </h2>
+                <p className="text-xs text-[#75847D] dark:text-[#94A8A0]">
+                  Verifies Section 5 & Section 19 requirements against live parser and financial logic
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTestResults(runAutomatedVerificationSuite())}
+                className="min-h-[36px] px-3 py-1.5 rounded-lg bg-[#F5F7F5] dark:bg-[#101A17] text-xs font-semibold text-[#16866A] dark:text-[#43C99A]"
+              >
+                Re-run Suite
+              </button>
+            </div>
+
+            <div className="max-h-64 overflow-y-auto divide-y divide-[#E3EAE5] dark:divide-[#253831] pr-1">
+              {testResults.map((test) => (
+                <div key={test.id} className="py-2.5 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-1.5">
+                      {test.passed ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#22A06B] shrink-0" />
+                      ) : (
+                        <XCircle className="w-3.5 h-3.5 text-[#D9534F] shrink-0" />
+                      )}
+                      <span className="font-mono text-[#75847D]">{test.id}</span>
+                      <span>{test.name}</span>
+                    </span>
+                    <span className="font-mono text-[11px] text-[#22A06B] dark:text-[#43C99A] shrink-0">
+                      {test.passed ? 'PASS' : 'FAIL'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#75847D] dark:text-[#94A8A0] font-mono mt-0.5 pl-5">
+                    {test.details}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         </div>

@@ -14,7 +14,9 @@ import {
   Navigation,
   Route,
   Settings,
+  Smartphone,
   Sun,
+  User,
   X,
 } from 'lucide-react';
 import { useTripBirrStore } from './store/useTripBirrStore';
@@ -27,13 +29,17 @@ import { SettingsScreen } from './screens/Settings/SettingsScreen';
 import { TripActionModal } from './components/TripActionModal';
 import { ManualCashModal } from './components/ManualCashModal';
 import { SmsSimulatorDrawer } from './components/SmsSimulatorDrawer';
+import { DriverProfileModal } from './components/DriverProfileModal';
+import { TripBirrLogo } from './components/TripBirrLogo';
 import { formatMinorUnits } from './utils/formatters';
 
 type NavSection = 'home' | 'trips' | 'transactions' | 'reports' | 'settings';
 
 export default function App() {
   const {
+    driverProfile,
     trips,
+    transactions,
     settings,
     latestAlert,
     pendingAssociationPrompt,
@@ -52,8 +58,12 @@ export default function App() {
   );
   const [isCashModalOpen, setIsCashModalOpen] = useState(false);
   const [isSmsSimulatorOpen, setIsSmsSimulatorOpen] = useState(false);
+  const [isDriverProfileOpen, setIsDriverProfileOpen] = useState(false);
 
   const activeTrip = trips.find((t) => t.status === TripStatus.ACTIVE) || null;
+  const latestBalanceTx = transactions.find(
+    (tx) => tx.account_balance_minor_units !== null
+  );
 
   // Keep <html class="dark"> synchronized with settings.theme
   useEffect(() => {
@@ -70,7 +80,11 @@ export default function App() {
     setIsCashModalOpen(true);
   };
 
-  const navItems: { id: NavSection; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  const navItems: {
+    id: NavSection;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }[] = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'trips', label: 'Trips', icon: Route },
     { id: 'transactions', label: 'Transactions', icon: ListOrdered },
@@ -78,18 +92,26 @@ export default function App() {
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
+  const driverInitials = driverProfile.full_name
+    .split(' ')
+    .map((p) => p[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
     <div className="min-h-screen flex flex-col bg-[#F5F7F5] dark:bg-[#101A17] text-[#172B25] dark:text-[#EDF6F0] pb-20 md:pb-12">
       {/* Strict 3-Zone Top Bar Contract */}
       <header className="sticky top-0 z-30 bg-white/95 dark:bg-[#192722]/95 backdrop-blur-md border-b border-[#E3EAE5] dark:border-[#253831]">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-8 px-4 sm:px-6 h-16">
-          {/* Zone 1: Single text element wordmark */}
+          {/* Zone 1: Brand Icon + Wordmark */}
           <button
             type="button"
             onClick={() => setActiveTab('home')}
-            className="text-lg font-bold tracking-tight text-[#123C35] dark:text-[#43C99A] whitespace-nowrap shrink-0 cursor-pointer"
+            className="flex items-center gap-2.5 text-lg font-bold tracking-tight text-[#123C35] dark:text-[#43C99A] whitespace-nowrap shrink-0 cursor-pointer"
           >
-            {settings.app_name}
+            <TripBirrLogo size={34} />
+            <span>{settings.app_name}</span>
           </button>
 
           {/* Zone 2: 5 clean single-line text navigation links */}
@@ -130,32 +152,79 @@ export default function App() {
         </div>
       </header>
 
-      {/* Workspace Utility Bar (Below Top Bar) */}
+      {/* Android Driver Identity & Workspace Utility Bar (Below Top Bar) */}
       <div className="bg-[#F5F7F5] dark:bg-[#101A17] border-b border-[#E3EAE5] dark:border-[#253831]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2 text-[#75847D] dark:text-[#94A8A0]">
-            <span>Ethiopian Driver Companion</span>
-            <span aria-hidden="true">·</span>
-            <span>Telebirr Sender 127 Offline Parser</span>
-            {activeTrip && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span className="font-semibold text-[#16866A] dark:text-[#43C99A] flex items-center gap-1">
-                  <Navigation className="w-3 h-3" />
-                  Active: {activeTrip.start_location_name.replace(', Addis Ababa', '')}
+          {/* Driver Profile Trigger */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setIsDriverProfileOpen(true)}
+              className="min-h-[36px] pl-1.5 pr-3 py-1 rounded-xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] hover:border-[#16866A] flex items-center gap-2 transition-colors cursor-pointer"
+            >
+              <span className="w-6 h-6 rounded-lg bg-[#123C35] text-[#43C99A] font-bold text-[11px] flex items-center justify-center">
+                {driverInitials}
+              </span>
+              <span className="font-bold text-[#172B25] dark:text-[#EDF6F0]">
+                {driverProfile.full_name}
+              </span>
+              <span aria-hidden="true" className="text-[#75847D]">
+                ·
+              </span>
+              <span className="font-mono text-[#75847D] dark:text-[#94A8A0]">
+                {driverProfile.vehicle_plate}
+              </span>
+            </button>
+
+            {latestBalanceTx?.account_balance_minor_units !== null &&
+              latestBalanceTx?.account_balance_minor_units !== undefined && (
+                <span className="text-[#75847D] dark:text-[#94A8A0] font-mono hidden sm:inline">
+                  E-Money Bal:{' '}
+                  <strong className="text-[#172B25] dark:text-[#EDF6F0]">
+                    {formatMinorUnits(
+                      latestBalanceTx.account_balance_minor_units,
+                      settings.currency_display
+                    )}
+                  </strong>
                 </span>
-              </>
+              )}
+
+            {activeTrip && (
+              <span className="font-semibold text-[#16866A] dark:text-[#43C99A] flex items-center gap-1">
+                <Navigation className="w-3 h-3" />
+                Active: {activeTrip.start_location_name.replace(', Addis Ababa', '')}
+              </span>
             )}
           </div>
 
+          {/* Right Utility Actions */}
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => setIsDriverProfileOpen(true)}
+              className="min-h-[34px] px-3 py-1 rounded-lg bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] font-semibold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-1.5 hover:border-[#16866A] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <User className="w-3.5 h-3.5 text-[#16866A] dark:text-[#43C99A]" />
+              Driver Profile
+            </button>
+
+            <button
+              type="button"
               onClick={() => setIsSmsSimulatorOpen(true)}
-              className="min-h-[34px] px-3 py-1 rounded-lg bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] font-semibold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-1.5 hover:border-[#16866A] transition-colors whitespace-nowrap shrink-0"
+              className="min-h-[34px] px-3 py-1 rounded-lg bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] font-semibold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-1.5 hover:border-[#16866A] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <MessageSquarePlus className="w-3.5 h-3.5 text-[#16866A] dark:text-[#43C99A]" />
               SMS 127 Testbench
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('settings')}
+              className="min-h-[34px] px-3 py-1 rounded-lg bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] font-medium text-[#75847D] dark:text-[#94A8A0] hover:text-[#172B25] dark:hover:text-[#EDF6F0] hidden sm:flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              title="Inspect React Native CLI & Kotlin Android source files"
+            >
+              <Smartphone className="w-3.5 h-3.5 text-[#16866A] dark:text-[#43C99A]" />
+              RN Android Code
             </button>
 
             <button
@@ -165,7 +234,7 @@ export default function App() {
                   theme: settings.theme === 'dark' ? 'light' : 'dark',
                 })
               }
-              className="min-h-[34px] px-3 py-1 rounded-lg bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] font-medium text-[#75847D] dark:text-[#94A8A0] hover:text-[#172B25] dark:hover:text-[#EDF6F0] flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+              className="min-h-[34px] px-3 py-1 rounded-lg bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] font-medium text-[#75847D] dark:text-[#94A8A0] hover:text-[#172B25] dark:hover:text-[#EDF6F0] flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
               aria-label="Toggle color theme"
             >
               {settings.theme === 'dark' ? (
@@ -283,7 +352,11 @@ export default function App() {
           />
         )}
         {activeTab === 'reports' && <ReportsScreen />}
-        {activeTab === 'settings' && <SettingsScreen />}
+        {activeTab === 'settings' && (
+          <SettingsScreen
+            onOpenDriverProfile={() => setIsDriverProfileOpen(true)}
+          />
+        )}
       </main>
 
       {/* Mobile Bottom 5-Section Navigation Bar (Section 15) */}
@@ -334,6 +407,11 @@ export default function App() {
       <SmsSimulatorDrawer
         isOpen={isSmsSimulatorOpen}
         onClose={() => setIsSmsSimulatorOpen(false)}
+      />
+
+      <DriverProfileModal
+        isOpen={isDriverProfileOpen}
+        onClose={() => setIsDriverProfileOpen(false)}
       />
     </div>
   );

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import {
   AppSettings,
+  DriverProfileRecord,
   LocationSource,
   PaymentMethod,
   SmsProcessingRecord,
@@ -41,6 +42,7 @@ export interface QueuedNativeSmsEvent {
 interface TripBirrState {
   schemaVersion: number;
   appliedMigrations: string[];
+  driverProfile: DriverProfileRecord;
   trips: TripRecord[];
   transactions: TransactionRecord[];
   smsProcessingRecords: SmsProcessingRecord[];
@@ -53,6 +55,9 @@ interface TripBirrState {
   // Simulated Android Native BroadcastReceiver queue (for testing when JS runtime is paused/closed)
   isJsRuntimeSimulatedOffline: boolean;
   nativeSmsQueue: QueuedNativeSmsEvent[];
+
+  // Actions — Driver Profile
+  updateDriverProfile: (updates: Partial<DriverProfileRecord>) => void;
 
   // Actions — SMS & Permissions
   setSmsPermissionStatus: (status: 'GRANTED' | 'DENIED' | 'NOT_REQUESTED') => void;
@@ -129,6 +134,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
     saveDatabaseToStorage({
       schemaVersion: current.schemaVersion,
       appliedMigrations: current.appliedMigrations,
+      driverProfile: current.driverProfile,
       trips: current.trips,
       transactions: current.transactions,
       smsProcessingRecords: current.smsProcessingRecords,
@@ -139,6 +145,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
   return {
     schemaVersion: initialDb.schemaVersion,
     appliedMigrations: initialDb.appliedMigrations,
+    driverProfile: initialDb.driverProfile,
     trips: initialDb.trips,
     transactions: initialDb.transactions,
     smsProcessingRecords: initialDb.smsProcessingRecords,
@@ -147,6 +154,16 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
     pendingAssociationPrompt: null,
     isJsRuntimeSimulatedOffline: false,
     nativeSmsQueue: [],
+
+    updateDriverProfile: (updates) => {
+      const current = get().driverProfile;
+      const nextProfile: DriverProfileRecord = {
+        ...current,
+        ...updates,
+        updated_at: new Date().toISOString(),
+      };
+      persistState({ driverProfile: nextProfile });
+    },
 
     setSmsPermissionStatus: (status) => {
       const updated = { ...get().settings, sms_permission_status: status };
@@ -162,7 +179,6 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       const wasOffline = get().isJsRuntimeSimulatedOffline;
       set({ isJsRuntimeSimulatedOffline: !wasOffline });
       if (wasOffline) {
-        // Automatically drain queued native SMS events when JS runtime wakes up
         get().drainNativeSmsQueue();
       }
     },
@@ -170,7 +186,6 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
     receiveIncomingSmsBroadcast: (input: RawSmsInput) => {
       const state = get();
 
-      // 1. Check RECEIVE_SMS permission first
       if (state.settings.sms_permission_status !== 'GRANTED') {
         return {
           status: 'PERMISSION_DENIED',
@@ -179,7 +194,6 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         };
       }
 
-      // 2. If simulating background/killed JS runtime, queue in native BroadcastReceiver SQLite table
       if (state.isJsRuntimeSimulatedOffline) {
         const queuedItem: QueuedNativeSmsEvent = {
           id: `native_q_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -195,7 +209,6 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         };
       }
 
-      // 3. Collect existing transaction IDs and message fingerprints for strict duplicate prevention
       const existingTxIds = new Set<string>();
       for (const tx of state.transactions) {
         if (tx.transaction_id) {
@@ -219,7 +232,6 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       const nowIso = input.receivedAt || new Date().toISOString();
       const { parsed, validation, processingStatus } = outcome;
 
-      // Record processing audit entry (without storing raw SMS content)
       const processingRecord: SmsProcessingRecord = {
         id: `sms_proc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         sender_id: parsed.smsSenderId,
@@ -255,7 +267,6 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         };
       }
 
-      // 4. Create financial transaction record
       const todayIso = parsed.isoDate || '2026-10-21';
       const displayDate = parsed.transactionDate || '21/10/2026';
       const displayTime =
@@ -269,7 +280,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
 
       const newTxRecord: TransactionRecord = {
         id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        trip_id: null, // Never silently make an irreversible association! Driver confirms or assigns.
+        trip_id: null,
         transaction_id: parsed.transactionId,
         transaction_type: parsed.messageType,
         payment_method: PaymentMethod.TELEBIRR,
@@ -277,7 +288,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         currency: parsed.currency || 'ETB',
         sender_name: parsed.senderName || 'Unknown Telebirr User',
         sender_phone: parsed.senderPhone,
-        recipient_name: parsed.recipient || 'Driver',
+        recipient_name: parsed.recipient || state.driverProfile.sms_greeting_name,
         transaction_date: displayDate,
         iso_date: todayIso,
         transaction_time: displayTime,
@@ -293,8 +304,6 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         updated_at: nowIso,
       };
 
-      // 5. If this is a REVERSAL or REFUND referencing an original transaction ID,
-      // preserve the original transaction (Rule 9 & 10) and mark its status REVERSED/REFUNDED
       const updatedExistingTransactions = state.transactions.map((existingTx) => {
         if (
           (parsed.messageType === SmsMessageType.PAYMENT_REVERSED ||
@@ -403,7 +412,6 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
 
     startTrip: (params) => {
       const state = get();
-      // Prevent multiple simultaneous active trips
       const existingActive = state.trips.find((t) => t.status === TripStatus.ACTIVE);
       if (existingActive) {
         return null;
@@ -481,7 +489,6 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
             ? { ...t, status: TripStatus.CANCELLED, end_time: nowIso, updated_at: nowIso }
             : t
         ),
-        // Unassign transactions that were temporarily linked to a cancelled trip so they are never lost
         transactions: state.transactions.map((tx) =>
           tx.trip_id === tripId ? { ...tx, trip_id: null, updated_at: nowIso } : tx
         ),
@@ -502,7 +509,6 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
     deleteTrip: (tripId) => {
       const state = get();
       const nowIso = new Date().toISOString();
-      // Foreign key ON DELETE SET NULL: preserve all transactions, setting their trip_id to null
       persistState({
         trips: state.trips.filter((t) => t.id !== tripId),
         transactions: state.transactions.map((tx) =>
@@ -544,7 +550,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         currency: 'ETB',
         sender_name: params.senderName?.trim() || 'Cash Passenger',
         sender_phone: null,
-        recipient_name: 'Driver',
+        recipient_name: state.driverProfile.sms_greeting_name,
         transaction_date: '21/10/2026',
         iso_date: '2026-10-21',
         transaction_time: timeStr,
@@ -581,6 +587,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       persistState({
         schemaVersion: seeded.schemaVersion,
         appliedMigrations: seeded.appliedMigrations,
+        driverProfile: seeded.driverProfile,
         trips: seeded.trips,
         transactions: seeded.transactions,
         smsProcessingRecords: seeded.smsProcessingRecords,

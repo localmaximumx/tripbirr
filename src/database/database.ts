@@ -1,5 +1,6 @@
 import {
   AppSettings,
+  DriverProfileRecord,
   LocationSource,
   PaymentMethod,
   SmsProcessingRecord,
@@ -11,16 +12,33 @@ import {
 import { CURRENT_SCHEMA_VERSION, SQLITE_MIGRATIONS } from './migrations';
 import { ProcessingStatus, SmsMessageType } from '../services/sms/smsTypes';
 
-const DB_STORAGE_KEY = 'tripbirr_sqlite_v2_db';
+const DB_STORAGE_KEY = 'tripbirr_sqlite_v3_db';
 
 export interface DatabaseState {
   schemaVersion: number;
   appliedMigrations: string[];
+  driverProfile: DriverProfileRecord;
   trips: TripRecord[];
   transactions: TransactionRecord[];
   smsProcessingRecords: SmsProcessingRecord[];
   settings: AppSettings;
 }
+
+export const DEFAULT_DRIVER_PROFILE: DriverProfileRecord = {
+  id: 'driver_biniyam_01',
+  full_name: 'Biniyam Zenebe',
+  sms_greeting_name: 'Biniyam',
+  telebirr_phone: '+251 911 408 747',
+  account_type: 'PERSONAL_EMONEY',
+  vehicle_type: 'MINIBUS_TAXI',
+  vehicle_plate: 'Code 3 - A58291 AA',
+  primary_corridor: '4 Kilo ↔ Piassa / Bole ↔ Mexico',
+  sub_city: 'Arada Sub-City, Addis Ababa',
+  daily_target_minor_units: 60000, // ETB 600.00 daily goal
+  driver_license_number: 'AA-DL-904821',
+  created_at: '2026-01-15T08:00:00.000Z',
+  updated_at: '2026-10-21T20:43:07.000Z',
+};
 
 export const DEFAULT_SETTINGS: AppSettings = {
   app_name: 'TripBirr',
@@ -331,6 +349,7 @@ export function createSeedDatabaseState(): DatabaseState {
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     appliedMigrations: SQLITE_MIGRATIONS.map((m) => m.name),
+    driverProfile: DEFAULT_DRIVER_PROFILE,
     trips,
     transactions,
     smsProcessingRecords,
@@ -347,7 +366,9 @@ export function loadDatabaseFromStorage(): DatabaseState {
       return seeded;
     }
     const parsed = JSON.parse(raw) as DatabaseState;
-    // Run schema migration check if older schema version
+    if (!parsed.driverProfile) {
+      parsed.driverProfile = DEFAULT_DRIVER_PROFILE;
+    }
     if (!parsed.schemaVersion || parsed.schemaVersion < CURRENT_SCHEMA_VERSION) {
       parsed.schemaVersion = CURRENT_SCHEMA_VERSION;
       parsed.appliedMigrations = SQLITE_MIGRATIONS.map((m) => m.name);
@@ -383,6 +404,7 @@ export function exportSqliteSqlDump(state: DatabaseState): string {
     return `'${String(val).replace(/'/g, "''")}'`;
   };
 
+  const p = state.driverProfile;
   const lines: string[] = [
     '-- TripBirr Offline SQLite Database Dump',
     `-- Schema Version: ${state.schemaVersion}`,
@@ -390,6 +412,8 @@ export function exportSqliteSqlDump(state: DatabaseState): string {
     '',
     ...SQLITE_MIGRATIONS.map((m) => `-- Migration: ${m.name}\n${m.upSql}\n`),
     'BEGIN TRANSACTION;',
+    '',
+    `INSERT INTO driver_profile VALUES (${escapeSql(p.id)}, ${escapeSql(p.full_name)}, ${escapeSql(p.sms_greeting_name)}, ${escapeSql(p.telebirr_phone)}, ${escapeSql(p.account_type)}, ${escapeSql(p.vehicle_type)}, ${escapeSql(p.vehicle_plate)}, ${escapeSql(p.primary_corridor)}, ${escapeSql(p.sub_city)}, ${escapeSql(p.daily_target_minor_units)}, ${escapeSql(p.driver_license_number)}, ${escapeSql(p.created_at)}, ${escapeSql(p.updated_at)});`,
     '',
   ];
 

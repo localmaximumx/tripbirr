@@ -23,6 +23,22 @@ export enum TransactionStatus {
   FAILED = 'FAILED',
 }
 
+export interface DriverProfileRecord {
+  id: string;
+  full_name: string;
+  sms_greeting_name: string; // Matches "Dear <Name>" in Telebirr 127 SMS
+  telebirr_phone: string;
+  account_type: 'PERSONAL_EMONEY' | 'MERCHANT_AGENT';
+  vehicle_type: 'MINIBUS_TAXI' | 'LADA_TAXI' | 'METER_RIDE' | 'BAJAJ' | 'PRIVATE';
+  vehicle_plate: string;
+  primary_corridor: string;
+  sub_city: string;
+  daily_target_minor_units: number; // e.g., 120000 = ETB 1,200.00
+  driver_license_number: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface TripRecord {
   id: string;
   start_location_name: string;

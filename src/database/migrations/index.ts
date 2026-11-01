@@ -90,6 +90,27 @@ CREATE INDEX IF NOT EXISTS idx_transactions_original_tx_id
   ON transactions(original_transaction_id);
 `.trim(),
   },
+  {
+    version: 3,
+    name: '003_driver_profile_table',
+    upSql: `
+CREATE TABLE IF NOT EXISTS driver_profile (
+  id TEXT PRIMARY KEY NOT NULL,
+  full_name TEXT NOT NULL,
+  sms_greeting_name TEXT NOT NULL,
+  telebirr_phone TEXT NOT NULL,
+  account_type TEXT NOT NULL DEFAULT 'PERSONAL_EMONEY',
+  vehicle_type TEXT NOT NULL DEFAULT 'MINIBUS_TAXI',
+  vehicle_plate TEXT NOT NULL,
+  primary_corridor TEXT NOT NULL,
+  sub_city TEXT NOT NULL,
+  daily_target_minor_units INTEGER NOT NULL DEFAULT 120000,
+  driver_license_number TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+`.trim(),
+  },
 ];
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;

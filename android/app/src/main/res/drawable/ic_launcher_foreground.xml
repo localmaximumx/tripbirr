@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <!-- Wireless Telebirr Payment Signal Arcs -->
+    <path
+        android:strokeColor="#F4B740"
+        android:strokeWidth="14"
+        android:strokeLineCap="round"
+        android:pathData="M336,122 A76,76 0 0,1 394,180" />
+    <path
+        android:strokeColor="#FFE082"
+        android:strokeWidth="10"
+        android:strokeLineCap="round"
+        android:pathData="M352,94 A112,112 0 0,1 422,164" />
+    <!-- Dynamic Highway Route Ribbon -->
+    <path
+        android:strokeColor="#43C99A"
+        android:strokeWidth="36"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M116,404 C138,334 198,316 256,290 C314,264 356,232 356,184 C356,128.77 311.23,84 256,84 C200.77,84 156,128.77 156,184 C156,238 206,276 256,336 C284,370 306,394 392,404" />
+    <!-- GPS Route Pin Shield -->
+    <path
+        android:fillColor="#43C99A"
+        android:pathData="M256,92 C205.2,92 164,133.2 164,184 C164,242.5 256,332 256,332 C256,332 348,242.5 348,184 C348,133.2 306.8,92 256,92 Z" />
+    <!-- Inner Deep Emerald Cutout -->
+    <path
+        android:fillColor="#0E2F29"
+        android:pathData="M256,128 A56,56 0 1,1 255.9,128 Z" />
+    <!-- Gold Compass Navigation Arrow Inside Pin -->
+    <path
+        android:fillColor="#F4B740"
+        android:pathData="M234,206 L256,146 L278,206 L256,193 Z" />
+</vector>
