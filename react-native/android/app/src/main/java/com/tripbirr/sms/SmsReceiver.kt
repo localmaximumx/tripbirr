@@ -78,7 +78,7 @@ class SmsReceiver : BroadcastReceiver() {
                 ?.reactInstanceManager
                 ?.currentReactContext
 
-            if (reactContext != null && reactContext.hasActiveCatalystInstance()) {
+            if (reactContext != null) {
                 val payload = Arguments.createMap().apply {
                     putString("fingerprint", fingerprint)
                     putString("senderId", senderAddress)
@@ -87,9 +87,9 @@ class SmsReceiver : BroadcastReceiver() {
                 }
                 reactContext
                     .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                    .emit(EVENT_TELEBIRR_SMS_RECEIVED, payload)
+                    ?.emit(EVENT_TELEBIRR_SMS_RECEIVED, payload)
             }
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             // Safe fallback: message remains safely persisted in NativeSmsQueueDbHelper
             // and will be drained via SmsModule.drainPendingSmsQueue() when app opens.
         }

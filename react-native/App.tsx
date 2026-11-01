@@ -21,40 +21,61 @@ export default function TripBirrReactNativeApp() {
   const [canGoBack, setCanGoBack] = useState(false);
 
   useEffect(() => {
-    // 1. Initialize native SQLite tables
-    initializeNativeSqliteDatabase();
+    // 1. Initialize native SQLite tables safely
+    try {
+      initializeNativeSqliteDatabase();
+    } catch (dbErr) {
+      console.warn('Native SQLite init caught:', dbErr);
+    }
 
     // 2. Request SMS permission & drain any background SMS queued by SmsReceiver.kt
-    requestAndroidReceiveSmsPermission().then(async (granted) => {
-      if (granted) {
-        const queued = await drainPendingNativeSmsQueue();
-        if (queued && queued.length > 0) {
-          const payload = JSON.stringify(queued);
-          webViewRef.current?.injectJavaScript(`
-            if (window.onNativeQueuedSmsDrained) {
-              window.onNativeQueuedSmsDrained(${payload});
+    requestAndroidReceiveSmsPermission()
+      .then(async (granted) => {
+        if (granted) {
+          try {
+            const queued = await drainPendingNativeSmsQueue();
+            if (queued && queued.length > 0) {
+              const payload = JSON.stringify(queued);
+              webViewRef.current?.injectJavaScript(`
+                if (window.onNativeQueuedSmsDrained) {
+                  window.onNativeQueuedSmsDrained(${payload});
+                }
+                true;
+              `);
+              for (const item of queued) {
+                await acknowledgeNativeSms(item.fingerprint);
+              }
             }
-            true;
-          `);
-          for (const item of queued) {
-            await acknowledgeNativeSms(item.fingerprint);
+          } catch (drainErr) {
+            console.warn('Error draining SMS queue:', drainErr);
           }
         }
-      }
-    });
+      })
+      .catch((err) => {
+        console.warn('SMS permission request error:', err);
+      });
 
     // 3. Real-time native Telebirr 127 SMS listener
-    const unsubscribe = subscribeToNativeTelebirrSms(async (event) => {
-      const payload = JSON.stringify(event);
-      webViewRef.current?.injectJavaScript(`
-        if (window.onNativeSmsReceived) {
-          window.onNativeSmsReceived(${payload});
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = subscribeToNativeTelebirrSms(async (event) => {
+        try {
+          const payload = JSON.stringify(event);
+          webViewRef.current?.injectJavaScript(`
+            if (window.onNativeSmsReceived) {
+              window.onNativeSmsReceived(${payload});
+            }
+            window.dispatchEvent(new CustomEvent('TripBirrSmsReceived', { detail: ${payload} }));
+            true;
+          `);
+          await acknowledgeNativeSms(event.fingerprint);
+        } catch (smsErr) {
+          console.warn('Error forwarding SMS to WebView:', smsErr);
         }
-        window.dispatchEvent(new CustomEvent('TripBirrSmsReceived', { detail: ${payload} }));
-        true;
-      `);
-      await acknowledgeNativeSms(event.fingerprint);
-    });
+      });
+    } catch (subErr) {
+      console.warn('subscribeToNativeTelebirrSms error:', subErr);
+    }
 
     // 4. Android Hardware Back Button navigation
     const backAction = () => {
@@ -121,6 +142,7 @@ export default function TripBirrReactNativeApp() {
         javaScriptEnabled={true}
         domStorageEnabled={true}
         geolocationEnabled={true}
+        mixedContentMode="always"
         onNavigationStateChange={(navState) => setCanGoBack(navState.canGoBack)}
         onMessage={handleMessage}
       />
