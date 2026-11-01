@@ -1,3 +1,4 @@
+import { getTranslation, Language } from '../../utils/i18n';
 import React, { useMemo, useRef, useState } from 'react';
 import {
   ArrowDown,
@@ -42,7 +43,6 @@ interface HomeScreenProps {
   onOpenTripDetail: (tripId: string) => void;
   onOpenTripModal: (mode: 'START' | 'END') => void;
   onOpenCashModal: (tripId?: string | null) => void;
-  onOpenSmsSimulator: () => void;
 }
 
 function formatTime12Hour(time24: string): string {
@@ -67,7 +67,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenTripDetail,
   onOpenTripModal,
   onOpenCashModal,
-  onOpenSmsSimulator,
 }) => {
   const {
     driverProfile,
@@ -137,10 +136,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       tx.transaction_status === TransactionStatus.VALID
   );
 
-  const featuredRecent: TransactionRecord[] = [
-    ...todayIncoming.filter((tx) => tx.id === 'tx_nov1_01' || tx.id === 'tx_nov1_03'),
-    ...todayIncoming.filter((tx) => tx.id !== 'tx_nov1_01' && tx.id !== 'tx_nov1_03'),
-  ].slice(0, 4);
+  const featuredRecent = [...transactions]
+    .filter((tx) => isPositiveIncomingTransaction(tx) && tx.transaction_status === TransactionStatus.VALID)
+    .sort((a, b) => {
+      const timeA = new Date(a.created_at || `${a.iso_date}T${a.transaction_time}`).getTime();
+      const timeB = new Date(b.created_at || `${b.iso_date}T${b.transaction_time}`).getTime();
+      return timeB - timeA;
+    })
+    .slice(0, 5);
 
   // Payments can only be assigned to an ACTIVE trip (never to completed or cancelled trips)
   const assignableTrips = useMemo(
@@ -230,17 +233,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pt-3">
       {/* Top Greeting Header + Dark/Light Mode Toggle on the Same Horizontal Line */}
       <div className="flex items-center justify-between gap-3 pt-2 pb-1">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-[#8E9BAE]">Sunday, Nov 1</p>
+          <p className="text-sm font-medium text-[#8E9BAE]">{settings.language === "am" ? "እሁድ፣ ጥቅምት 22" : "Sunday, Nov 1"}</p>
           <h1
             className={`text-[30px] font-extrabold tracking-tight leading-tight mt-0.5 truncate ${
               isDark ? 'text-white' : 'text-[#0F172A]'
             }`}
           >
-            Selam, {driverGreetingName}
+            {getTranslation('selam', (settings.language || 'en') as Language)}, {driverGreetingName}
           </h1>
         </div>
         <ThemeToggleButton />
@@ -261,7 +264,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         className="rounded-[28px] bg-[#182E6F] p-6 text-white shadow-lg transition-transform active:scale-[0.99] cursor-pointer hover:brightness-105"
       >
         <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-[#B4C6EE]">Today&apos;s earnings</p>
+          <p className="text-sm font-medium text-[#B4C6EE]">{getTranslation('todays_earnings', (settings.language || 'en') as Language)}</p>
 
           <button
             type="button"
@@ -344,16 +347,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         {/* Telebirr vs Cash Legend */}
         <div className="mt-2.5 flex items-center justify-between text-sm">
           <span className="text-[#5CA4F8] font-medium">
-            Telebirr{' '}
-            {settings.privacy_hide_balance
-              ? '•••'
-              : formatWholeNumberWithCommas(telebirrMinor)}
+            Telebirr {formatWholeNumberWithCommas(telebirrMinor)}
           </span>
           <span className="text-[#F5BA36] font-semibold">
-            Cash{' '}
-            {settings.privacy_hide_balance
-              ? '•••'
-              : formatWholeNumberWithCommas(cashMinor)}
+            Cash {formatWholeNumberWithCommas(cashMinor)}
           </span>
         </div>
 
@@ -432,9 +429,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="text-xl font-extrabold tabular-nums text-[#5CA4F8]">
                 {currency}{' '}
-                {settings.privacy_hide_balance
-                  ? '•••'
-                  : formatWholeNumberWithCommas(activeTripSummary.totalMinorUnits)}
+                {formatWholeNumberWithCommas(activeTripSummary.totalMinorUnits)}
               </span>
               <ChevronRight className="w-5 h-5 text-[#8E9BAE]" />
             </div>
@@ -609,32 +604,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     isDark ? 'text-white' : 'text-[#0F172A]'
                   }`}
                 >
-                  +{settings.privacy_hide_balance ? '•••' : amountMajor}
+                  +{amountMajor}
                 </span>
               </div>
             );
           })}
         </div>
       </section>
-
-      {/* Quick Telebirr 127 SMS Testbench Trigger Strip */}
-      <div className="pt-2">
-        <button
-          type="button"
-          onClick={onOpenSmsSimulator}
-          className={`w-full rounded-2xl p-3.5 flex items-center justify-between text-xs font-semibold border cursor-pointer transition-colors ${
-            isDark
-              ? 'bg-[#141B2D]/70 border-white/5 text-[#8E9BAE] hover:text-white'
-              : 'bg-white border-slate-200/80 text-slate-600 hover:text-slate-900'
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <MessageSquarePlus className="w-4 h-4 text-[#2CD48D]" />
-            <span>Telebirr Sender 127 SMS Testbench (Simulate Incoming SMS)</span>
-          </span>
-          <span className="text-[#2CD48D] font-bold">Open ›</span>
-        </button>
-      </div>
 
       {/* Pop-Up Bottom Sheet for Clicked Recent Payment (Shows Person + Specific Trip Info) */}
       {selectedTx && (

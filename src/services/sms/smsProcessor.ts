@@ -65,6 +65,7 @@ export function evaluateIncomingSms(
       SmsMessageType.PROMOTIONAL_MESSAGE,
       SmsMessageType.SERVICE_NOTIFICATION,
       SmsMessageType.ACCOUNT_BALANCE_UPDATE,
+      SmsMessageType.RECHARGE,
     ].includes(parsed.messageType)
   ) {
     return {

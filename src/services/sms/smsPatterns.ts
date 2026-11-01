@@ -69,6 +69,15 @@ export const SMS_CLASSIFICATION_PATTERNS = {
     /\bsystem\s+upgrade\b/i,
     /\bdear\s+customer,\s+telebirr\s+service\b/i,
   ],
+  RECHARGE: [
+    /\brecharge(?:d)?\b/i,
+    /\bairtime\b/i,
+    /\bpackage\b/i,
+    /\btop-?up\b/i,
+    /\bየአየር\s*ሰዓት\b/i,
+    /\bሞልተዋል\b/i,
+    /\bጥቅል\b/i,
+  ],
 };
 
 export const SMS_EXTRACTION_PATTERNS = {

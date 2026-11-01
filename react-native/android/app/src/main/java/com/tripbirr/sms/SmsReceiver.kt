@@ -19,8 +19,10 @@ import java.security.MessageDigest
  * Guarantees:
  * 1. Works 100% offline even when the app is closed or killed in background.
  * 2. Filters strictly for sender "127" (never reads personal SMS).
- * 3. Enqueues to local SQLite and triggers an instant heads-up notification.
- * 4. Broadcasts internal event so MainActivity can update UI in real-time.
+ * 3. Smartly ignores airtime/package recharges (user requested zero action on recharges).
+ * 4. Summarizes notification (Payer name, phone number, transferred amount).
+ * 5. Enqueues to local SQLite and triggers an instant heads-up notification.
+ * 6. Broadcasts internal event so MainActivity can update UI in real-time.
  */
 class SmsReceiver : BroadcastReceiver() {
 
@@ -52,6 +54,17 @@ class SmsReceiver : BroadcastReceiver() {
         val messageBody = fullBodyBuilder.toString().trim()
         if (messageBody.isEmpty()) return
 
+        // Ignore airtime / package recharges:
+        // "if the user is recharged there is no work the app has to do, so the app has to be smart and identify recharged sms from received sms"
+        if (isRechargeMessage(messageBody)) {
+            return
+        }
+
+        // Only process received payments / incoming credits
+        if (!isReceivedPayment(messageBody)) {
+            return
+        }
+
         val timestampMs = messages[0].timestampMillis
         val fingerprint = sha256("$senderAddress|$timestampMs|${messageBody.lowercase()}")
 
@@ -81,11 +94,58 @@ class SmsReceiver : BroadcastReceiver() {
         } catch (_: Throwable) {
         }
 
-        // 3. Post system heads-up notification
+        // 3. Post system heads-up notification with summarized details
         try {
             showNotification(context, messageBody)
         } catch (_: Throwable) {
         }
+    }
+
+    private fun isRechargeMessage(body: String): Boolean {
+        val lower = body.lowercase()
+        return lower.contains("recharge") ||
+               lower.contains("airtime") ||
+               lower.contains("package") ||
+               lower.contains("top-up") ||
+               lower.contains("የአየር") ||
+               lower.contains("ሞልተዋል") ||
+               lower.contains("ጥቅል")
+    }
+
+    private fun isReceivedPayment(body: String): Boolean {
+        val lower = body.lowercase()
+        return (lower.contains("received") && (lower.contains("etb") || lower.contains("birr"))) ||
+               lower.contains("ተቀብለዋል") ||
+               (lower.contains("credited with") && lower.contains("etb")) ||
+               lower.contains("transferred etb")
+    }
+
+    private fun extractSummary(body: String): Pair<String, String> {
+        var amount = ""
+        val amtMatch = Regex("""(?:received|credited\s+with|transferred|amount(?:\s+of)?|ETB|Birr|ብር)\s*(?:ETB|Birr|ብር)?\s*([\d,]+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE).find(body)
+        if (amtMatch != null) {
+            amount = amtMatch.groupValues[1]
+        }
+
+        var senderName = ""
+        var senderPhone = ""
+        // Matches "from Abebe Bikila (0911****89)" or "from Abebe Bikila(2519****8747)" or "ከ Abebe Bikila (09...)"
+        val senderMatch = Regex("""(?:from|ከ)\s+([^()\n\r]+?)(?:\s*\(\s*([+\d*]{6,16})\s*\))?(?:\s+on|\s+at|\.|\s*$)""", RegexOption.IGNORE_CASE).find(body)
+        if (senderMatch != null) {
+            senderName = senderMatch.groupValues[1].trim()
+            if (senderMatch.groupValues.size > 2) {
+                senderPhone = senderMatch.groupValues[2].trim()
+            }
+        }
+
+        val title = if (amount.isNotEmpty()) "Telebirr Payment: ETB $amount" else "Telebirr Payment Received"
+        val content = when {
+            senderName.isNotEmpty() && senderPhone.isNotEmpty() -> "From $senderName ($senderPhone)"
+            senderName.isNotEmpty() -> "From $senderName"
+            amount.isNotEmpty() -> "ETB $amount received into your account"
+            else -> "Incoming payment received"
+        }
+        return Pair(title, content)
     }
 
     private fun showNotification(context: Context, body: String) {
@@ -102,11 +162,13 @@ class SmsReceiver : BroadcastReceiver() {
             manager.createNotificationChannel(channel)
         }
 
+        val (title, content) = extractSummary(body)
+
         val notification = NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_chat)
-            .setContentTitle("Telebirr 127 Payment Detected")
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setContentTitle(title)
+            .setContentText(content)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(content))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()

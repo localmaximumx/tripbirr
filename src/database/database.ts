@@ -1112,7 +1112,7 @@ export function loadDatabaseFromStorage(): DatabaseState {
         Boolean(parsed.settings?.privacy_hide_balance)
       ),
       schema_version: CURRENT_SCHEMA_VERSION,
-  first_launch_completed: false,
+      first_launch_completed: Boolean(parsed.settings?.first_launch_completed),
     };
     if (!parsed.schemaVersion || parsed.schemaVersion < CURRENT_SCHEMA_VERSION) {
       parsed.schemaVersion = CURRENT_SCHEMA_VERSION;

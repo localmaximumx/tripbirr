@@ -6,6 +6,7 @@ import { CURRENT_DEMO_ISO_DATE } from '../../database/database';
 import { calculateTripTotalMinorUnits } from '../../services/reports/reportService';
 import { calculateDistanceMeters } from '../../services/location/locationService';
 import { ThemeToggleButton } from '../../components/ThemeToggleButton';
+import { getTranslation, Language } from '../../utils/i18n';
 
 interface TripsScreenProps {
   onOpenTripDetail: (tripId: string) => void;
@@ -63,7 +64,7 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pt-3">
       {/* Page Title + Dark/Light Mode Toggle on the Same Horizontal Line */}
       <div className="flex items-center justify-between gap-3 pt-1">
         <h1
@@ -71,7 +72,7 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
             isDark ? 'text-white' : 'text-[#0F172A]'
           }`}
         >
-          Trips
+          {getTranslation('trips_title', (settings.language || 'en') as Language)}
         </h1>
         <ThemeToggleButton />
       </div>

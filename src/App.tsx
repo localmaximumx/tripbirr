@@ -27,9 +27,9 @@ import { ReportsScreen } from './screens/Reports/ReportsScreen';
 import { SettingsScreen } from './screens/Settings/SettingsScreen';
 import { TripActionModal } from './components/TripActionModal';
 import { ManualCashModal } from './components/ManualCashModal';
-import { SmsSimulatorDrawer } from './components/SmsSimulatorDrawer';
 import { DriverProfileModal } from './components/DriverProfileModal';
 import { FirstLaunchModal } from './components/FirstLaunchModal';
+import { getTranslation, Language } from './utils/i18n';
 import {
   formatMinorUnits,
   formatPayerName,
@@ -64,9 +64,8 @@ export default function App() {
     undefined
   );
   const [isCashModalOpen, setIsCashModalOpen] = useState(false);
-  const [isSmsSimulatorOpen, setIsSmsSimulatorOpen] = useState(false);
   const [isDriverProfileOpen, setIsDriverProfileOpen] = useState(false);
-  const [isFirstLaunchOpen, setIsFirstLaunchOpen] = useState(settings.first_launch_completed === false);
+  const [isFirstLaunchOpen, setIsFirstLaunchOpen] = useState(!settings.first_launch_completed);
 
   const activeTrip = trips.find((t) => t.status === TripStatus.ACTIVE) || null;
   const selectedTrip = selectedTripId
@@ -105,7 +104,7 @@ export default function App() {
         useTripBirrStore.getState().receiveIncomingSmsBroadcast({
           senderId: data.senderId || '127',
           body: data.body,
-          timestamp: data.timestamp || Date.now(),
+          receivedAt: data.timestamp ? new Date(data.timestamp).toISOString() : new Date().toISOString(),
         });
       }
     };
@@ -140,16 +139,18 @@ export default function App() {
     setSelectedTripId(tripId);
   };
 
+  const lang = (settings.language || 'en') as Language;
+
   const navItems: {
     id: NavSection;
     label: string;
     icon: React.ComponentType<{ className?: string }>;
   }[] = [
-    { id: 'home', label: 'Home', icon: Home },
-    { id: 'trips', label: 'Trips', icon: Route },
-    { id: 'transactions', label: 'Transactions', icon: Wallet },
-    { id: 'reports', label: 'Reports', icon: BarChart3 },
-    { id: 'settings', label: 'Profile', icon: User },
+    { id: 'home', label: getTranslation('nav_home', lang), icon: Home },
+    { id: 'trips', label: getTranslation('nav_trips', lang), icon: Route },
+    { id: 'transactions', label: getTranslation('nav_transactions', lang), icon: Wallet },
+    { id: 'reports', label: getTranslation('nav_reports', lang), icon: BarChart3 },
+    { id: 'settings', label: getTranslation('nav_profile', lang), icon: User },
   ];
 
   const driverFirstName = getDriverFirstName(driverProfile);
@@ -291,15 +292,13 @@ export default function App() {
         )}
 
         {/* Main Mobile Scrollable Content */}
-        <main className="flex-1 px-4 pt-3 pb-36">
+        <main className="flex-1 px-4 pt-7 pb-36">
           {activeTab === 'home' && (
             <HomeScreen
               onNavigate={handleNavigate}
               onOpenTripDetail={handleOpenTripDetail}
               onOpenTripModal={(mode) => setTripModalMode(mode)}
               onOpenCashModal={handleOpenCashModal}
-              onOpenSmsSimulator={() => setIsSmsSimulatorOpen(true)}
-              onOpenFirstLaunch={() => setIsFirstLaunchOpen(true)}
             />
           )}
           {activeTab === 'trips' && (
@@ -311,7 +310,6 @@ export default function App() {
           )}
           {activeTab === 'transactions' && (
             <TransactionsScreen
-              onOpenSmsSimulator={() => setIsSmsSimulatorOpen(true)}
               onOpenCashModal={() => handleOpenCashModal(null)}
               initialFilterHint={txFilterHint}
             />
@@ -320,7 +318,6 @@ export default function App() {
           {activeTab === 'settings' && (
             <SettingsScreen
               onOpenDriverProfile={() => setIsDriverProfileOpen(true)}
-              onOpenSmsSimulator={() => setIsSmsSimulatorOpen(true)}
               onOpenFirstLaunch={() => setIsFirstLaunchOpen(true)}
             />
           )}
@@ -345,7 +342,7 @@ export default function App() {
               className="pointer-events-auto min-h-[50px] px-6 py-3 rounded-full bg-[#2CD48D] hover:bg-[#25be7d] active:scale-[0.98] text-[#052115] font-extrabold text-[15px] shadow-[0_10px_28px_rgba(44,212,141,0.38)] flex items-center gap-2.5 transition-all cursor-pointer"
             >
               <Play className="w-4 h-4 fill-[#052115] text-[#052115]" />
-              <span>Start trip</span>
+              <span>{getTranslation("start_trip", lang)}</span>
             </button>
           </div>
         )}
@@ -396,11 +393,7 @@ export default function App() {
         onSaveCash={(params) => addManualCashPayment(params)}
       />
 
-      <SmsSimulatorDrawer
-        isOpen={isSmsSimulatorOpen}
-        onClose={() => setIsSmsSimulatorOpen(false)}
-      />
-
+      
       <DriverProfileModal
         isOpen={isDriverProfileOpen}
         onClose={() => setIsDriverProfileOpen(false)}

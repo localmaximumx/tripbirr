@@ -1,3 +1,4 @@
+import { getTranslation, Language } from '../../utils/i18n';
 import React, { useMemo, useState } from 'react';
 import { Download, RotateCcw } from 'lucide-react';
 import { useTripBirrStore } from '../../store/useTripBirrStore';
@@ -274,7 +275,7 @@ export const ReportsScreen: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pt-3">
       {/* Page Title + Dark/Light Mode Toggle on the Same Horizontal Line */}
       <div className="flex items-center justify-between gap-3 pt-1">
         <h1
@@ -282,7 +283,7 @@ export const ReportsScreen: React.FC = () => {
             isDark ? 'text-white' : 'text-[#0F172A]'
           }`}
         >
-          Reports
+          {getTranslation('reports_title', (settings.language || 'en') as Language)}
         </h1>
         <ThemeToggleButton />
       </div>
@@ -381,7 +382,7 @@ export const ReportsScreen: React.FC = () => {
         </div>
 
         <p className="text-[40px] font-extrabold tracking-tight leading-none mt-1.5">
-          {currency} {formatWholeNumberWithCommas(totalMinor)}
+          {settings.privacy_hide_balance ? `${currency} ••••` : `${currency} ${formatWholeNumberWithCommas(totalMinor)}`}
         </p>
 
         {activeDayPoint ? (

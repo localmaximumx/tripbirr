@@ -59,6 +59,13 @@ export function classifyTelebirrSms(body: string, senderId: string = '127'): Sms
     }
   }
 
+  // 4b. Check airtime / package recharges
+  for (const regex of SMS_CLASSIFICATION_PATTERNS.RECHARGE) {
+    if (regex.test(normalizedBody)) {
+      return SmsMessageType.RECHARGE;
+    }
+  }
+
   // 5. Check incoming payments and transfers
   for (const regex of SMS_CLASSIFICATION_PATTERNS.PAYMENT_RECEIVED) {
     if (regex.test(normalizedBody)) {

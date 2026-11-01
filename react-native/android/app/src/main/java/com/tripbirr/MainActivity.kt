@@ -219,6 +219,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         fun isNativeBridgeReady(): Boolean = true
 
         @JavascriptInterface
+        fun requestPermissions() {
+            runOnUiThread {
+                requestAppPermissions()
+            }
+        }
+
+        @JavascriptInterface
         fun speakPayment(amountFormatted: String, senderName: String, timeFormatted: String, spokenText: String) {
             if (ttsReady && tts != null) {
                 val text = spokenText.ifEmpty { "Payment received $amountFormatted" }

@@ -24,9 +24,9 @@ import {
   formatPhonePrivacy,
 } from '../../utils/formatters';
 import { ThemeToggleButton } from '../../components/ThemeToggleButton';
+import { getTranslation, Language } from '../../utils/i18n';
 
 interface TransactionsScreenProps {
-  onOpenSmsSimulator?: () => void;
   onOpenCashModal?: () => void;
   initialFilterHint?: string | null;
 }
@@ -156,15 +156,22 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
     }
     return Array.from(map.entries())
       .sort(([a], [b]) => b.localeCompare(a))
-      .map(([isoDate, items]) => ({
-        isoDate,
-        headerLabel: formatDateGroupHeader(isoDate),
-        subtotalMinorUnits: items.reduce(
-          (sum, item) => sum + item.amount_minor_units,
-          0
-        ),
-        items,
-      }));
+      .map(([isoDate, items]) => {
+        const sortedItems = [...items].sort((a, b) => {
+          const tA = new Date(a.created_at || `${a.iso_date}T${a.transaction_time}`).getTime();
+          const tB = new Date(b.created_at || `${b.iso_date}T${b.transaction_time}`).getTime();
+          return tB - tA;
+        });
+        return {
+          isoDate,
+          headerLabel: formatDateGroupHeader(isoDate),
+          subtotalMinorUnits: sortedItems.reduce(
+            (sum, item) => sum + item.amount_minor_units,
+            0
+          ),
+          items: sortedItems,
+        };
+      });
   }, [filteredPayments]);
 
   const selectedTx = useMemo(
@@ -235,7 +242,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pt-3">
       {/* Page Title + Dark/Light Mode Toggle on the Same Horizontal Line */}
       <div className="flex items-center justify-between gap-3 pt-1">
         <h1
@@ -243,7 +250,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
             isDark ? 'text-white' : 'text-[#0F172A]'
           }`}
         >
-          Payments
+          {getTranslation('transactions_title', (settings.language || 'en') as Language)}
         </h1>
         <ThemeToggleButton />
       </div>
