@@ -31,6 +31,7 @@ import {
   formatIsoToShortTime,
   formatMinorUnits,
 } from '../../utils/formatters';
+import { LiveTripMap } from '../../components/LiveTripMap';
 
 interface HomeScreenProps {
   onNavigate: (tab: 'home' | 'trips' | 'transactions' | 'reports' | 'settings') => void;
@@ -184,6 +185,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   : 'Manual Entry'}
               </p>
             </div>
+          </div>
+
+          {/* Live Interactive Map for the Active Trip */}
+          <div className="mt-6">
+            <LiveTripMap
+              trip={activeTrip}
+              associatedTransactions={activeTripSummary.transactions}
+              currency={currency}
+            />
           </div>
 
           {activeTripSummary.transactions.length > 0 && (

@@ -23,6 +23,7 @@ import {
   formatIsoToShortTime,
   formatMinorUnits,
 } from '../../utils/formatters';
+import { LiveTripMap } from '../../components/LiveTripMap';
 
 interface TripsScreenProps {
   onOpenTripModal: (mode: 'START' | 'END') => void;
@@ -388,6 +389,14 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
                   </p>
                 </div>
               </div>
+
+              {/* Interactive Live / Endpoint Map */}
+              <LiveTripMap
+                trip={selectedTrip}
+                associatedTransactions={selectedSummary.transactions}
+                currency={currency}
+                compact
+              />
 
               {/* Start & End Point Coordinate Plot (Section 7 & 11: Displays Start and End Points without fabricating a route) */}
               <div className="rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831] p-4">
