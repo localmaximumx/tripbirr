@@ -1,49 +1,26 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  Award,
-  Car,
   CheckCircle2,
-  Edit3,
-  Phone,
-  ShieldCheck,
-  Target,
-  User,
-  Wallet,
   X,
 } from 'lucide-react';
 import { useTripBirrStore } from '../store/useTripBirrStore';
-import { DriverProfileRecord, TripStatus } from '../database/schema';
-import { computeFinancialReport } from '../services/reports/reportService';
+import { DriverProfileRecord } from '../database/schema';
 import { parseAmountToMinorUnits } from '../services/sms/smsParser';
-import { formatMinorUnits } from '../utils/formatters';
 
 interface DriverProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const VEHICLE_LABELS: Record<DriverProfileRecord['vehicle_type'], string> = {
-  MINIBUS_TAXI: 'Minibus / HiAce Taxi (12-Seat)',
-  LADA_TAXI: 'Blue-White Lada / Sedan Taxi',
-  METER_RIDE: 'Meter / App Ride Vehicle',
-  BAJAJ: 'Bajaj Three-Wheeler',
-  PRIVATE: 'Private Commercial Vehicle',
-};
-
 export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { driverProfile, trips, transactions, settings, updateDriverProfile } =
-    useTripBirrStore();
+  const { driverProfile, settings, updateDriverProfile } = useTripBirrStore();
 
-  const currency = settings.currency_display;
-  const [isEditing, setIsEditing] = useState(false);
+  const isDark = settings.theme === 'dark';
 
   const [fullName, setFullName] = useState(driverProfile.full_name);
-  const [smsGreetingName, setSmsGreetingName] = useState(
-    driverProfile.sms_greeting_name
-  );
   const [telebirrPhone, setTelebirrPhone] = useState(driverProfile.telebirr_phone);
   const [accountType, setAccountType] = useState<
     DriverProfileRecord['account_type']
@@ -64,208 +41,198 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({
   );
   const [savedBanner, setSavedBanner] = useState(false);
 
+  // Pull-down gesture state
+  const [dragOffsetY, setDragOffsetY] = useState(0);
+  const dragStartYRef = useRef<number | null>(null);
+
+  // Sync form fields whenever modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setFullName(driverProfile.full_name);
+      setTelebirrPhone(driverProfile.telebirr_phone);
+      setAccountType(driverProfile.account_type);
+      setVehicleType(driverProfile.vehicle_type);
+      setVehiclePlate(driverProfile.vehicle_plate);
+      setPrimaryCorridor(driverProfile.primary_corridor);
+      setSubCity(driverProfile.sub_city);
+      setDailyTargetInput(
+        (driverProfile.daily_target_minor_units / 100).toFixed(2)
+      );
+      setLicenseNumber(driverProfile.driver_license_number);
+      setSavedBanner(false);
+      setDragOffsetY(0);
+    }
+  }, [isOpen, driverProfile]);
+
   if (!isOpen) return null;
-
-  const allTimeReport = computeFinancialReport(
-    trips,
-    transactions,
-    'ALL_TIME',
-    '2026-10-21'
-  );
-  const todayReport = computeFinancialReport(
-    trips,
-    transactions,
-    'TODAY',
-    '2026-10-21'
-  );
-
-  // Extract latest E-Money Account balance from most recent Telebirr 127 SMS
-  const latestBalanceTx = transactions.find(
-    (tx) => tx.account_balance_minor_units !== null
-  );
-  const latestBalanceMinor = latestBalanceTx?.account_balance_minor_units ?? null;
-
-  const targetProgressPct = Math.min(
-    100,
-    Math.round(
-      (todayReport.combinedNetIncomeMinorUnits /
-        Math.max(100, driverProfile.daily_target_minor_units)) *
-        100
-    )
-  );
-
-  const completedTripsTotal = trips.filter(
-    (t) => t.status === TripStatus.COMPLETED
-  ).length;
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanedName = fullName.trim() || 'Abebe Kebede';
+    const firstName = cleanedName.split(/\s+/)[0] || 'Abebe';
     const parsedTarget = parseAmountToMinorUnits(dailyTargetInput);
+
     updateDriverProfile({
-      full_name: fullName.trim() || 'Biniyam Zenebe',
-      sms_greeting_name: smsGreetingName.trim() || 'Biniyam',
-      telebirr_phone: telebirrPhone.trim() || '+251 911 408 747',
+      full_name: cleanedName,
+      sms_greeting_name: firstName,
+      telebirr_phone: telebirrPhone.trim() || '+251 91 234 8747',
       account_type: accountType,
       vehicle_type: vehicleType,
       vehicle_plate: vehiclePlate.trim() || 'Code 3 - A58291 AA',
-      primary_corridor: primaryCorridor.trim() || '4 Kilo ↔ Piassa',
-      sub_city: subCity.trim() || 'Arada, Addis Ababa',
-      daily_target_minor_units: parsedTarget ? parsedTarget.minor : 60000,
+      primary_corridor: primaryCorridor.trim() || 'Bole ↔ Piassa',
+      sub_city: subCity.trim() || 'Bole, Addis Ababa',
+      daily_target_minor_units: parsedTarget ? parsedTarget.minor : 200000,
       driver_license_number: licenseNumber.trim() || 'AA-DL-904821',
     });
-    setIsEditing(false);
     setSavedBanner(true);
-    setTimeout(() => setSavedBanner(false), 2500);
+    setTimeout(() => {
+      setSavedBanner(false);
+      onClose();
+    }, 350);
   };
 
-  const initials = driverProfile.full_name
+  const handleTouchStart = (e: React.TouchEvent) => {
+    dragStartYRef.current = e.touches[0].clientY;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (dragStartYRef.current === null) return;
+    const delta = e.touches[0].clientY - dragStartYRef.current;
+    if (delta > 0) {
+      setDragOffsetY(delta);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (dragOffsetY > 85) {
+      onClose();
+    } else {
+      setDragOffsetY(0);
+    }
+    dragStartYRef.current = null;
+  };
+
+  const initials = (fullName || driverProfile.full_name)
     .split(' ')
+    .filter(Boolean)
     .map((p) => p[0])
     .join('')
     .slice(0, 2)
     .toUpperCase();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/55 backdrop-blur-xs p-0 sm:p-4">
-      <div className="w-full max-w-xl max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-2xl bg-white dark:bg-[#192722] border border-[#E3EAE5] dark:border-[#253831] p-6 shadow-xl space-y-5">
+    <div
+      className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-xs"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          transform: `translateY(${dragOffsetY}px)`,
+          transition:
+            dragOffsetY > 0
+              ? 'none'
+              : 'transform 240ms cubic-bezier(0.22, 1, 0.36, 1)',
+        }}
+        className={`w-full max-w-[430px] mx-auto max-h-[92vh] overflow-y-auto rounded-t-[30px] border-t px-6 pb-7 pt-2 shadow-2xl space-y-4 animate-in slide-in-from-bottom duration-250 ${
+          isDark
+            ? 'bg-[#141B2D] border-white/10 text-white'
+            : 'bg-white border-slate-200 text-[#0F172A]'
+        }`}
+      >
+        {/* Pull-Down Drag Handle */}
+        <div
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onClick={onClose}
+          className="w-full py-2 flex flex-col items-center justify-center cursor-grab active:cursor-grabbing select-none"
+          title="Swipe down or tap to close"
+        >
+          <div className="w-11 h-1.5 rounded-full bg-[#8E9BAE]/40" />
+        </div>
+
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-[#E3EAE5] dark:border-[#253831]">
+        <div
+          className={`flex items-center justify-between pb-3.5 border-b ${
+            isDark ? 'border-white/10' : 'border-slate-200'
+          }`}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-[#123C35] text-[#43C99A] font-bold text-base flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-[#2CD48D] text-[#052115] font-extrabold text-base flex items-center justify-center shrink-0">
               {initials}
             </div>
             <div>
-              <h2 className="text-lg font-bold text-[#172B25] dark:text-[#EDF6F0]">
-                {driverProfile.full_name}
-              </h2>
-              <div className="flex flex-wrap items-center gap-1.5 text-xs text-[#75847D] dark:text-[#94A8A0]">
-                <span className="font-mono">{driverProfile.telebirr_phone}</span>
-                <span aria-hidden="true">·</span>
-                <span>{driverProfile.vehicle_plate}</span>
-              </div>
+              <h2 className="text-lg font-extrabold">Edit Profile</h2>
+              <p className="text-xs text-[#8E9BAE]">
+                Updates your greeting &amp; profile across TripBirr
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {!isEditing && (
-              <button
-                type="button"
-                onClick={() => setIsEditing(true)}
-                className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831] text-xs font-semibold text-[#172B25] dark:text-[#EDF6F0] flex items-center gap-1.5 hover:border-[#16866A] cursor-pointer"
-              >
-                <Edit3 className="w-3.5 h-3.5 text-[#16866A] dark:text-[#43C99A]" />
-                Edit Profile
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl text-[#75847D] hover:text-[#172B25] dark:hover:text-[#EDF6F0]"
-              aria-label="Close driver profile"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-[38px] min-w-[38px] flex items-center justify-center rounded-xl text-[#8E9BAE] hover:opacity-80 cursor-pointer"
+            aria-label="Close driver profile"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {savedBanner && (
-          <div className="p-3 rounded-xl bg-[#DDF5E9] dark:bg-[#1D352D] border border-[#16866A]/30 flex items-center gap-2 text-xs text-[#123C35] dark:text-[#EDF6F0]">
-            <CheckCircle2 className="w-4 h-4 text-[#16866A] dark:text-[#43C99A]" />
-            <span>Driver profile updated in offline SQLite database.</span>
+          <div
+            className={`p-3 rounded-xl border flex items-center gap-2 text-xs ${
+              isDark
+                ? 'bg-[#0B0F1A] border-[#2CD48D]/40 text-white'
+                : 'bg-[#E8F1FF]/60 border-[#5CA4F8]/50 text-[#0F172A]'
+            }`}
+          >
+            <CheckCircle2 className="w-4 h-4 text-[#2CD48D]" />
+            <span>Profile updated!</span>
           </div>
         )}
 
-        {/* Telebirr Wallet & Lifetime Driver Summary Strip */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-4 rounded-xl bg-[#123C35] text-white">
-            <div className="flex items-center gap-1.5 text-xs text-[#DDF5E9]/80">
-              <Wallet className="w-3.5 h-3.5 text-[#43C99A]" />
-              <span>E-Money Balance (SMS 127)</span>
-            </div>
-            <p className="text-lg font-bold font-mono tabular-nums text-[#43C99A] mt-1.5">
-              {latestBalanceMinor !== null
-                ? formatMinorUnits(latestBalanceMinor, currency)
-                : '—'}
-            </p>
-            <p className="text-[11px] text-[#DDF5E9]/70 mt-0.5">
-              From last payment notification
-            </p>
-          </div>
-
-          <div className="p-4 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831]">
-            <div className="flex items-center gap-1.5 text-xs text-[#75847D] dark:text-[#94A8A0]">
-              <Award className="w-3.5 h-3.5 text-[#16866A] dark:text-[#43C99A]" />
-              <span>Lifetime Collections</span>
-            </div>
-            <p className="text-lg font-bold font-mono tabular-nums text-[#172B25] dark:text-[#EDF6F0] mt-1.5">
-              {formatMinorUnits(allTimeReport.combinedNetIncomeMinorUnits, currency)}
-            </p>
-            <p className="text-[11px] text-[#75847D] dark:text-[#94A8A0] mt-0.5 font-mono">
-              {completedTripsTotal} completed trips
-            </p>
-          </div>
-
-          <div className="p-4 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831]">
-            <div className="flex items-center gap-1.5 text-xs text-[#75847D] dark:text-[#94A8A0]">
-              <Target className="w-3.5 h-3.5 text-[#16866A] dark:text-[#43C99A]" />
-              <span>Today&apos;s Goal ({targetProgressPct}%)</span>
-            </div>
-            <p className="text-lg font-bold font-mono tabular-nums text-[#172B25] dark:text-[#EDF6F0] mt-1.5">
-              {formatMinorUnits(driverProfile.daily_target_minor_units, currency)}
-            </p>
-            <div className="w-full h-1.5 rounded-full bg-[#E3EAE5] dark:bg-[#253831] mt-2 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-[#16866A] dark:bg-[#43C99A]"
-                style={{ width: `${targetProgressPct}%` }}
+        {/* Direct Edit Form */}
+        <form onSubmit={handleSave} className="space-y-3.5 text-xs">
+          <div className="grid grid-cols-1 gap-3">
+            <div>
+              <label className="block font-bold mb-1 text-[#8E9BAE]">
+                Driver Name (Shown in Home Greeting &amp; Profile)
+              </label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="e.g., Biniyam Zenebe"
+                className={`w-full h-11 px-3.5 rounded-xl border text-sm font-semibold focus:outline-none focus:border-[#2CD48D] ${
+                  isDark
+                    ? 'bg-[#0B0F1A] border-white/10 text-white'
+                    : 'bg-[#F7F9FC] border-slate-200 text-[#0F172A]'
+                }`}
               />
             </div>
-          </div>
-        </div>
 
-        {/* View or Edit Form */}
-        {isEditing ? (
-          <form onSubmit={handleSave} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div>
-                <label className="block font-semibold text-[#172B25] dark:text-[#EDF6F0] mb-1">
-                  Driver Full Name
-                </label>
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831]"
-                />
-              </div>
+            <div>
+              <label className="block font-bold mb-1 text-[#8E9BAE]">
+                Telebirr Phone Number
+              </label>
+              <input
+                type="text"
+                value={telebirrPhone}
+                onChange={(e) => setTelebirrPhone(e.target.value)}
+                className={`w-full h-11 px-3.5 rounded-xl border font-mono text-sm focus:outline-none focus:border-[#2CD48D] ${
+                  isDark
+                    ? 'bg-[#0B0F1A] border-white/10 text-white'
+                    : 'bg-[#F7F9FC] border-slate-200 text-[#0F172A]'
+                }`}
+              />
+            </div>
 
+            <div className="grid grid-cols-2 gap-2.5">
               <div>
-                <label className="block font-semibold text-[#172B25] dark:text-[#EDF6F0] mb-1">
-                  Telebirr SMS Greeting Name (&quot;Dear ...&quot;)
-                </label>
-                <input
-                  type="text"
-                  value={smsGreetingName}
-                  onChange={(e) => setSmsGreetingName(e.target.value)}
-                  placeholder="e.g., Biniyam"
-                  className="w-full h-10 px-3 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831] font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-[#172B25] dark:text-[#EDF6F0] mb-1">
-                  Telebirr Phone Number
-                </label>
-                <input
-                  type="text"
-                  value={telebirrPhone}
-                  onChange={(e) => setTelebirrPhone(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831] font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-[#172B25] dark:text-[#EDF6F0] mb-1">
-                  Telebirr Account Type
+                <label className="block font-bold mb-1 text-[#8E9BAE]">
+                  Account Type
                 </label>
                 <select
                   value={accountType}
@@ -274,15 +241,19 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({
                       e.target.value as DriverProfileRecord['account_type']
                     )
                   }
-                  className="w-full h-10 px-3 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831]"
+                  className={`w-full h-11 px-3 rounded-xl border text-xs font-semibold focus:outline-none focus:border-[#2CD48D] ${
+                    isDark
+                      ? 'bg-[#0B0F1A] border-white/10 text-white'
+                      : 'bg-[#F7F9FC] border-slate-200 text-[#0F172A]'
+                  }`}
                 >
-                  <option value="PERSONAL_EMONEY">Personal E-Money Account</option>
-                  <option value="MERCHANT_AGENT">Telebirr Driver / Merchant</option>
+                  <option value="PERSONAL_EMONEY">Personal E-Money</option>
+                  <option value="MERCHANT_AGENT">Driver / Merchant</option>
                 </select>
               </div>
 
               <div>
-                <label className="block font-semibold text-[#172B25] dark:text-[#EDF6F0] mb-1">
+                <label className="block font-bold mb-1 text-[#8E9BAE]">
                   Vehicle Type
                 </label>
                 <select
@@ -292,129 +263,92 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({
                       e.target.value as DriverProfileRecord['vehicle_type']
                     )
                   }
-                  className="w-full h-10 px-3 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831]"
+                  className={`w-full h-11 px-3 rounded-xl border text-xs font-semibold focus:outline-none focus:border-[#2CD48D] ${
+                    isDark
+                      ? 'bg-[#0B0F1A] border-white/10 text-white'
+                      : 'bg-[#F7F9FC] border-slate-200 text-[#0F172A]'
+                  }`}
                 >
-                  <option value="MINIBUS_TAXI">Minibus / HiAce Taxi (12-Seat)</option>
-                  <option value="LADA_TAXI">Blue-White Lada / Sedan Taxi</option>
-                  <option value="METER_RIDE">Meter / App Ride Vehicle</option>
+                  <option value="MINIBUS_TAXI">Minibus Taxi</option>
+                  <option value="LADA_TAXI">Lada / Sedan Taxi</option>
+                  <option value="METER_RIDE">Meter / App Ride</option>
                   <option value="BAJAJ">Bajaj Three-Wheeler</option>
-                  <option value="PRIVATE">Private Commercial Vehicle</option>
+                  <option value="PRIVATE">Private Vehicle</option>
                 </select>
               </div>
+            </div>
 
+            <div className="grid grid-cols-2 gap-2.5">
               <div>
-                <label className="block font-semibold text-[#172B25] dark:text-[#EDF6F0] mb-1">
-                  Vehicle License Plate
+                <label className="block font-bold mb-1 text-[#8E9BAE]">
+                  Vehicle Plate
                 </label>
                 <input
                   type="text"
                   value={vehiclePlate}
                   onChange={(e) => setVehiclePlate(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831] font-mono"
+                  className={`w-full h-11 px-3 rounded-xl border font-mono text-sm focus:outline-none focus:border-[#2CD48D] ${
+                    isDark
+                      ? 'bg-[#0B0F1A] border-white/10 text-white'
+                      : 'bg-[#F7F9FC] border-slate-200 text-[#0F172A]'
+                  }`}
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-[#172B25] dark:text-[#EDF6F0] mb-1">
-                  Primary Addis Ababa Corridor
-                </label>
-                <input
-                  type="text"
-                  value={primaryCorridor}
-                  onChange={(e) => setPrimaryCorridor(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-[#172B25] dark:text-[#EDF6F0] mb-1">
+                <label className="block font-bold mb-1 text-[#8E9BAE]">
                   Daily Target (ETB)
                 </label>
                 <input
                   type="text"
                   value={dailyTargetInput}
                   onChange={(e) => setDailyTargetInput(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] border border-[#E3EAE5] dark:border-[#253831] font-mono"
+                  className={`w-full h-11 px-3 rounded-xl border font-mono text-sm focus:outline-none focus:border-[#2CD48D] ${
+                    isDark
+                      ? 'bg-[#0B0F1A] border-white/10 text-white'
+                      : 'bg-[#F7F9FC] border-slate-200 text-[#0F172A]'
+                  }`}
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-2.5 pt-2">
-              <button
-                type="button"
-                onClick={() => setIsEditing(false)}
-                className="min-h-[42px] px-4 py-2 rounded-xl border border-[#E3EAE5] dark:border-[#253831] text-xs font-semibold text-[#75847D]"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="min-h-[42px] px-5 py-2 rounded-xl bg-[#16866A] dark:bg-[#43C99A] text-white dark:text-[#101A17] text-xs font-bold"
-              >
-                Save Driver Profile
-              </button>
-            </div>
-          </form>
-        ) : (
-          <div className="space-y-2.5 text-xs">
-            <div className="flex items-center justify-between py-2 border-b border-[#E3EAE5] dark:border-[#253831]">
-              <span className="text-[#75847D] dark:text-[#94A8A0] flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-[#16866A] dark:text-[#43C99A]" />
-                SMS Recipient Match Name
-              </span>
-              <span className="font-mono font-semibold text-[#172B25] dark:text-[#EDF6F0]">
-                Dear {driverProfile.sms_greeting_name}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between py-2 border-b border-[#E3EAE5] dark:border-[#253831]">
-              <span className="text-[#75847D] dark:text-[#94A8A0] flex items-center gap-1.5">
-                <Phone className="w-3.5 h-3.5 text-[#16866A] dark:text-[#43C99A]" />
-                Registered Telebirr Number
-              </span>
-              <span className="font-mono font-semibold text-[#172B25] dark:text-[#EDF6F0]">
-                {driverProfile.telebirr_phone} ({driverProfile.account_type.replace('_', ' ')})
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between py-2 border-b border-[#E3EAE5] dark:border-[#253831]">
-              <span className="text-[#75847D] dark:text-[#94A8A0] flex items-center gap-1.5">
-                <Car className="w-3.5 h-3.5 text-[#16866A] dark:text-[#43C99A]" />
-                Vehicle & Plate Number
-              </span>
-              <span className="font-semibold text-[#172B25] dark:text-[#EDF6F0]">
-                {VEHICLE_LABELS[driverProfile.vehicle_type]} ·{' '}
-                <span className="font-mono">{driverProfile.vehicle_plate}</span>
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between py-2 border-b border-[#E3EAE5] dark:border-[#253831]">
-              <span className="text-[#75847D] dark:text-[#94A8A0]">
-                Primary Operating Corridor
-              </span>
-              <span className="font-semibold text-[#172B25] dark:text-[#EDF6F0]">
-                {driverProfile.primary_corridor}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between py-2 border-b border-[#E3EAE5] dark:border-[#253831]">
-              <span className="text-[#75847D] dark:text-[#94A8A0]">
-                Sub-City & License ID
-              </span>
-              <span className="font-mono text-[#172B25] dark:text-[#EDF6F0]">
-                {driverProfile.sub_city} · {driverProfile.driver_license_number}
-              </span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-[#F5F7F5] dark:bg-[#101A17] flex items-center gap-2 text-[11px] text-[#75847D] dark:text-[#94A8A0]">
-              <ShieldCheck className="w-4 h-4 text-[#16866A] dark:text-[#43C99A] shrink-0" />
-              <span>
-                100% Offline Profile: Stored locally in the Android SQLite{' '}
-                <span className="font-mono">driver_profile</span> table. Never uploaded to external servers.
-              </span>
+            <div>
+              <label className="block font-bold mb-1 text-[#8E9BAE]">
+                Primary Route Corridor
+              </label>
+              <input
+                type="text"
+                value={primaryCorridor}
+                onChange={(e) => setPrimaryCorridor(e.target.value)}
+                className={`w-full h-11 px-3.5 rounded-xl border text-xs font-semibold focus:outline-none focus:border-[#2CD48D] ${
+                  isDark
+                    ? 'bg-[#0B0F1A] border-white/10 text-white'
+                    : 'bg-[#F7F9FC] border-slate-200 text-[#0F172A]'
+                }`}
+              />
             </div>
           </div>
-        )}
+
+          <div className="flex justify-end gap-2.5 pt-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className={`min-h-[44px] px-4 py-2 rounded-xl border text-xs font-bold cursor-pointer ${
+                isDark
+                  ? 'border-white/10 text-[#8E9BAE] hover:text-white'
+                  : 'border-slate-200 text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="min-h-[44px] px-5 py-2 rounded-xl bg-[#2CD48D] text-[#052115] text-xs font-extrabold cursor-pointer hover:opacity-95 transition-opacity"
+            >
+              Save Profile
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

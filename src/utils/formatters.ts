@@ -1,3 +1,5 @@
+import { DriverProfileRecord } from '../database/schema';
+
 /**
  * Formats integer minor units (cents) into currency string.
  * Example: 5000 -> "ETB 50.00"
@@ -19,6 +21,45 @@ export function formatMinorUnits(
   const sign = isNegative ? '-' : '';
 
   return `${sign}${currencyLabel} ${formattedMajor}.${formattedCents}`;
+}
+
+/**
+ * Returns the driver's first/preferred name directly from their profile full_name.
+ */
+export function getDriverFirstName(profile: DriverProfileRecord): string {
+  const full = (profile.full_name || '').trim();
+  if (!full) return profile.sms_greeting_name || 'Driver';
+  return full.split(/\s+/)[0];
+}
+
+/**
+ * Formats a passenger/payer name respecting the user's privacy setting.
+ * Example when masked: "Natnael Birhanu" -> "Natnael B."
+ */
+export function formatPayerName(
+  name: string | null | undefined,
+  maskLastName?: boolean
+): string {
+  const clean = (name || 'Unknown Payer').trim();
+  if (!maskLastName) return clean;
+  const parts = clean.split(/\s+/);
+  if (parts.length <= 1) return clean;
+  return `${parts[0]} ${parts[1][0].toUpperCase()}.`;
+}
+
+/**
+ * Formats a phone number respecting the user's privacy setting.
+ */
+export function formatPhonePrivacy(
+  phone: string | null | undefined,
+  maskPhone?: boolean
+): string {
+  if (!phone) return '';
+  if (!maskPhone) return phone;
+  if (phone.length >= 6) {
+    return `${phone.slice(0, 4)}••••••${phone.slice(-2)}`;
+  }
+  return '••••••••••';
 }
 
 /**

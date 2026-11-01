@@ -8,8 +8,8 @@ interface TripBirrLogoProps {
 
 /**
  * Official TripBirr App Icon (Vector Adaptive Icon).
- * Combines an Addis Ababa route ribbon, a luminous mint GPS endpoint pin,
- * a gold compass needle, and Telebirr 127 wireless payment waves.
+ * Uses the TripBirr royal navy (#182E6F -> #0B0F1A), emerald (#2CD48D),
+ * Telebirr sky blue (#5CA4F8), and warm gold (#F5BA36) palette.
  */
 export const TripBirrLogo: React.FC<TripBirrLogoProps> = ({
   size = 36,
@@ -38,9 +38,9 @@ export const TripBirrLogo: React.FC<TripBirrLogoProps> = ({
           y2="512"
           gradientUnits="userSpaceOnUse"
         >
-          <stop offset="0%" stopColor="#195247" />
-          <stop offset="55%" stopColor="#123C35" />
-          <stop offset="100%" stopColor="#09201B" />
+          <stop offset="0%" stopColor="#182E6F" />
+          <stop offset="55%" stopColor="#141B2D" />
+          <stop offset="100%" stopColor="#0B0F1A" />
         </linearGradient>
         <linearGradient
           id={`tbMint_${uid}`}
@@ -50,9 +50,9 @@ export const TripBirrLogo: React.FC<TripBirrLogoProps> = ({
           y2="416"
           gradientUnits="userSpaceOnUse"
         >
-          <stop offset="0%" stopColor="#72F5C7" />
-          <stop offset="50%" stopColor="#43C99A" />
-          <stop offset="100%" stopColor="#16866A" />
+          <stop offset="0%" stopColor="#5CA4F8" />
+          <stop offset="50%" stopColor="#2CD48D" />
+          <stop offset="100%" stopColor="#159960" />
         </linearGradient>
         <linearGradient
           id={`tbGold_${uid}`}
@@ -63,7 +63,7 @@ export const TripBirrLogo: React.FC<TripBirrLogoProps> = ({
           gradientUnits="userSpaceOnUse"
         >
           <stop offset="0%" stopColor="#FFE58F" />
-          <stop offset="100%" stopColor="#F4B740" />
+          <stop offset="100%" stopColor="#F5BA36" />
         </linearGradient>
         <radialGradient
           id={`tbGlow_${uid}`}
@@ -72,8 +72,8 @@ export const TripBirrLogo: React.FC<TripBirrLogoProps> = ({
           r="210"
           gradientUnits="userSpaceOnUse"
         >
-          <stop offset="0%" stopColor="#43C99A" stopOpacity="0.32" />
-          <stop offset="100%" stopColor="#43C99A" stopOpacity="0" />
+          <stop offset="0%" stopColor="#5CA4F8" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="#5CA4F8" stopOpacity="0" />
         </radialGradient>
       </defs>
 
@@ -85,19 +85,19 @@ export const TripBirrLogo: React.FC<TripBirrLogoProps> = ({
         width="476"
         height="476"
         rx={Math.max(40, rx - 6)}
-        stroke="#43C99A"
+        stroke="#5CA4F8"
         strokeOpacity="0.32"
         strokeWidth="6"
       />
 
-      {/* Ambient Mint Glow */}
+      {/* Ambient Royal Blue Glow */}
       <circle cx="256" cy="210" r="210" fill={`url(#tbGlow_${uid})`} />
 
       {/* Subtle Addis Corridor Contours */}
       <path
         d="M56 360 C150 320, 360 400, 456 330"
-        stroke="#43C99A"
-        strokeOpacity="0.16"
+        stroke="#5CA4F8"
+        strokeOpacity="0.18"
         strokeWidth="8"
         strokeLinecap="round"
         strokeDasharray="12 16"
@@ -133,8 +133,8 @@ export const TripBirrLogo: React.FC<TripBirrLogoProps> = ({
         fill={`url(#tbMint_${uid})`}
       />
 
-      {/* Inner Deep Emerald Cutout */}
-      <circle cx="256" cy="184" r="58" fill="#0D2C26" />
+      {/* Inner Deep Navy Cutout */}
+      <circle cx="256" cy="184" r="58" fill="#0B0F1A" />
       <circle
         cx="256"
         cy="184"
@@ -148,9 +148,9 @@ export const TripBirrLogo: React.FC<TripBirrLogoProps> = ({
       <path d="M232 208 L256 142 L280 208 L256 194 Z" fill={`url(#tbGold_${uid})`} />
 
       {/* Bottom Route Waypoint Dots */}
-      <circle cx="156" cy="396" r="12" fill="#FFE58F" />
-      <circle cx="256" cy="412" r="9" fill="#43C99A" />
-      <circle cx="356" cy="396" r="12" fill="#43C99A" />
+      <circle cx="156" cy="396" r="12" fill="#F5BA36" />
+      <circle cx="256" cy="412" r="9" fill="#5CA4F8" />
+      <circle cx="356" cy="396" r="12" fill="#2CD48D" />
     </svg>
   );
 };

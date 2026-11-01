@@ -23,7 +23,8 @@ import {
   dispatchPaymentEffects,
   DriverPaymentAlert,
 } from '../services/notifications/notificationService';
-import { formatMinorUnits } from '../utils/formatters';
+import { formatMinorUnits, getDriverFirstName } from '../utils/formatters';
+import { isPositiveIncomingTransaction } from '../services/reports/reportService';
 
 export interface PendingTripAssociationPrompt {
   transactionRecordId: string;
@@ -34,11 +35,30 @@ export interface PendingTripAssociationPrompt {
   activeTripStartLocation: string;
 }
 
+export interface DailyTargetAlert {
+  id: string;
+  driverName: string;
+  targetMinorUnits: number;
+  achievedMinorUnits: number;
+  achievedAt: string;
+}
+
 export interface QueuedNativeSmsEvent {
   id: string;
   senderId: string;
   body: string;
   receivedAt: string;
+}
+
+function computeTodayTotalMinorUnits(transactions: TransactionRecord[]): number {
+  return transactions
+    .filter(
+      (tx) =>
+        tx.iso_date === CURRENT_DEMO_ISO_DATE &&
+        isPositiveIncomingTransaction(tx) &&
+        tx.transaction_status === TransactionStatus.VALID
+    )
+    .reduce((sum, tx) => sum + tx.amount_minor_units, 0);
 }
 
 interface TripBirrState {
@@ -50,11 +70,12 @@ interface TripBirrState {
   smsProcessingRecords: SmsProcessingRecord[];
   settings: AppSettings;
 
-  // Live notification banner & non-destructive association prompt
+  // Live notification banner, non-destructive association prompt & daily target achievement alert
   latestAlert: DriverPaymentAlert | null;
   pendingAssociationPrompt: PendingTripAssociationPrompt | null;
+  dailyTargetAlert: DailyTargetAlert | null;
 
-  // Simulated Android Native BroadcastReceiver queue (for testing when JS runtime is paused/closed)
+  // Simulated Android Native BroadcastReceiver queue
   isJsRuntimeSimulatedOffline: boolean;
   nativeSmsQueue: QueuedNativeSmsEvent[];
 
@@ -72,7 +93,9 @@ interface TripBirrState {
   };
   drainNativeSmsQueue: () => number;
   dismissAlert: () => void;
+  dismissDailyTargetAlert: () => void;
   confirmPendingTripAssociation: (associate: boolean) => void;
+  clearSmsAuditLogs: () => void;
 
   // Actions — Trips
   startTrip: (params: {
@@ -154,17 +177,54 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
     settings: initialDb.settings,
     latestAlert: null,
     pendingAssociationPrompt: null,
+    dailyTargetAlert: null,
     isJsRuntimeSimulatedOffline: false,
     nativeSmsQueue: [],
 
     updateDriverProfile: (updates) => {
-      const current = get().driverProfile;
+      const state = get();
+      const current = state.driverProfile;
+      const nextFullName =
+        updates.full_name !== undefined ? updates.full_name.trim() : current.full_name;
+      const derivedFirstName =
+        nextFullName.split(/\s+/)[0] || updates.sms_greeting_name || current.sms_greeting_name;
+
       const nextProfile: DriverProfileRecord = {
         ...current,
         ...updates,
+        full_name: nextFullName || current.full_name,
+        sms_greeting_name: derivedFirstName,
         updated_at: new Date().toISOString(),
       };
-      persistState({ driverProfile: nextProfile });
+
+      // Also sync recipient_name in transactions so all references reflect the driver's profile name
+      const updatedTransactions = state.transactions.map((tx) => ({
+        ...tx,
+        recipient_name: derivedFirstName,
+      }));
+
+      const todayTotal = computeTodayTotalMinorUnits(updatedTransactions);
+      let nextDailyTargetAlert = state.dailyTargetAlert;
+
+      if (
+        nextProfile.daily_target_minor_units > 0 &&
+        todayTotal >= nextProfile.daily_target_minor_units &&
+        current.daily_target_minor_units !== nextProfile.daily_target_minor_units
+      ) {
+        nextDailyTargetAlert = {
+          id: `target_${Date.now()}`,
+          driverName: getDriverFirstName(nextProfile),
+          targetMinorUnits: nextProfile.daily_target_minor_units,
+          achievedMinorUnits: todayTotal,
+          achievedAt: new Date().toISOString(),
+        };
+      }
+
+      persistState({
+        driverProfile: nextProfile,
+        transactions: updatedTransactions,
+        dailyTargetAlert: nextDailyTargetAlert,
+      });
     },
 
     setSmsPermissionStatus: (status) => {
@@ -280,6 +340,8 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
           hour12: false,
         });
 
+      const driverFirstName = getDriverFirstName(state.driverProfile);
+
       const newTxRecord: TransactionRecord = {
         id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         trip_id: null,
@@ -290,7 +352,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         currency: parsed.currency || 'ETB',
         sender_name: parsed.senderName || 'Unknown Telebirr User',
         sender_phone: parsed.senderPhone,
-        recipient_name: parsed.recipient || state.driverProfile.sms_greeting_name,
+        recipient_name: driverFirstName,
         transaction_date: displayDate,
         iso_date: todayIso,
         transaction_time: displayTime,
@@ -325,6 +387,26 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         }
         return existingTx;
       });
+
+      const nextTransactions = [newTxRecord, ...updatedExistingTransactions];
+      const prevTodayTotal = computeTodayTotalMinorUnits(state.transactions);
+      const nextTodayTotal = computeTodayTotalMinorUnits(nextTransactions);
+      const dailyTarget = state.driverProfile.daily_target_minor_units;
+
+      let dailyTargetAlert = state.dailyTargetAlert;
+      if (
+        dailyTarget > 0 &&
+        nextTodayTotal >= dailyTarget &&
+        (prevTodayTotal < dailyTarget || parsed.amountMinorUnits)
+      ) {
+        dailyTargetAlert = {
+          id: `target_${Date.now()}`,
+          driverName: driverFirstName,
+          targetMinorUnits: dailyTarget,
+          achievedMinorUnits: nextTodayTotal,
+          achievedAt: nowIso,
+        };
+      }
 
       let latestAlert = state.latestAlert;
       let pendingAssociationPrompt = state.pendingAssociationPrompt;
@@ -368,10 +450,11 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       }
 
       persistState({
-        transactions: [newTxRecord, ...updatedExistingTransactions],
+        transactions: nextTransactions,
         smsProcessingRecords: [processingRecord, ...state.smsProcessingRecords],
         latestAlert,
         pendingAssociationPrompt,
+        dailyTargetAlert,
       });
 
       return {
@@ -403,6 +486,10 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       set({ latestAlert: null });
     },
 
+    dismissDailyTargetAlert: () => {
+      set({ dailyTargetAlert: null });
+    },
+
     confirmPendingTripAssociation: (associate: boolean) => {
       const prompt = get().pendingAssociationPrompt;
       if (!prompt) return;
@@ -412,28 +499,19 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       set({ pendingAssociationPrompt: null, latestAlert: null });
     },
 
+    clearSmsAuditLogs: () => {
+      persistState({ smsProcessingRecords: [] });
+    },
+
     startTrip: (params) => {
       const state = get();
+      const existingActive = state.trips.find((t) => t.status === TripStatus.ACTIVE);
+      if (existingActive) {
+        return null;
+      }
+
       const timePart = new Date().toISOString().slice(11);
       const nowIso = `${CURRENT_DEMO_ISO_DATE}T${timePart}`;
-
-      const updatedPreviousTrips = state.trips.map((t) => {
-        if (t.status === TripStatus.ACTIVE) {
-          return {
-            ...t,
-            end_location_name: params.startLocationName.trim() || 'Completed',
-            end_latitude: params.latitude,
-            end_longitude: params.longitude,
-            end_location_accuracy: params.accuracy,
-            end_location_source: params.source,
-            end_time: nowIso,
-            duration: t.duration || 1200,
-            status: TripStatus.COMPLETED,
-            updated_at: nowIso,
-          };
-        }
-        return t;
-      });
 
       const newTrip: TripRecord = {
         id: `trip_${Date.now()}`,
@@ -457,7 +535,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       };
 
       persistState({
-        trips: [newTrip, ...updatedPreviousTrips],
+        trips: [newTrip, ...state.trips],
       });
       return newTrip;
     },
@@ -538,12 +616,21 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
     assignTransactionToTrip: (transactionRecordId, tripId) => {
       const state = get();
       const nowIso = `${CURRENT_DEMO_ISO_DATE}T${new Date().toISOString().slice(11)}`;
+      const isPendingTx =
+        state.pendingAssociationPrompt?.transactionRecordId === transactionRecordId;
+      const isAlertTx =
+        state.latestAlert?.transactionRecordId === transactionRecordId;
+
       persistState({
         transactions: state.transactions.map((tx) =>
           tx.id === transactionRecordId
             ? { ...tx, trip_id: tripId, updated_at: nowIso }
             : tx
         ),
+        pendingAssociationPrompt:
+          isPendingTx || tripId !== null ? null : state.pendingAssociationPrompt,
+        latestAlert:
+          isAlertTx && tripId !== null ? null : state.latestAlert,
       });
     },
 
@@ -558,6 +645,8 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         hour12: false,
       });
 
+      const driverFirstName = getDriverFirstName(state.driverProfile);
+
       const cashRecord: TransactionRecord = {
         id: `tx_cash_${Date.now()}`,
         trip_id: params.tripId,
@@ -568,7 +657,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         currency: 'ETB',
         sender_name: params.senderName?.trim() || 'Cash payment',
         sender_phone: null,
-        recipient_name: state.driverProfile.sms_greeting_name,
+        recipient_name: driverFirstName,
         transaction_date: CURRENT_DEMO_DISPLAY_DATE,
         iso_date: CURRENT_DEMO_ISO_DATE,
         transaction_time: timeStr,
@@ -576,13 +665,32 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         sms_sender: 'MANUAL_CASH',
         transaction_status: TransactionStatus.VALID,
         original_transaction_id: null,
-        description: params.description?.trim() ? `Note: ${params.description.trim()}` : 'Note: Cash fare',
+        description: params.description?.trim()
+          ? `Note: ${params.description.trim()}`
+          : 'Note: Cash fare',
         created_at: nowIso,
         updated_at: nowIso,
       };
 
+      const nextTransactions = [cashRecord, ...state.transactions];
+      const prevTodayTotal = computeTodayTotalMinorUnits(state.transactions);
+      const nextTodayTotal = computeTodayTotalMinorUnits(nextTransactions);
+      const dailyTarget = state.driverProfile.daily_target_minor_units;
+
+      let dailyTargetAlert = state.dailyTargetAlert;
+      if (dailyTarget > 0 && nextTodayTotal >= dailyTarget && prevTodayTotal <= nextTodayTotal) {
+        dailyTargetAlert = {
+          id: `target_${Date.now()}`,
+          driverName: driverFirstName,
+          targetMinorUnits: dailyTarget,
+          achievedMinorUnits: nextTodayTotal,
+          achievedAt: nowIso,
+        };
+      }
+
       persistState({
-        transactions: [cashRecord, ...state.transactions],
+        transactions: nextTransactions,
+        dailyTargetAlert,
       });
       return cashRecord;
     },
@@ -591,6 +699,14 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       const state = get();
       persistState({
         transactions: state.transactions.filter((tx) => tx.id !== transactionRecordId),
+        pendingAssociationPrompt:
+          state.pendingAssociationPrompt?.transactionRecordId === transactionRecordId
+            ? null
+            : state.pendingAssociationPrompt,
+        latestAlert:
+          state.latestAlert?.transactionRecordId === transactionRecordId
+            ? null
+            : state.latestAlert,
       });
     },
 
@@ -612,6 +728,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         settings: seeded.settings,
         latestAlert: null,
         pendingAssociationPrompt: null,
+        dailyTargetAlert: null,
         nativeSmsQueue: [],
         isJsRuntimeSimulatedOffline: false,
       });

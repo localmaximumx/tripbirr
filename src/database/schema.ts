@@ -109,4 +109,9 @@ export interface AppSettings {
   language: 'en' | 'am';
   theme: 'light' | 'dark';
   schema_version: number;
+  // User-configurable Privacy Settings
+  privacy_hide_balance?: boolean;
+  privacy_mask_sender_names?: boolean;
+  privacy_mask_phones?: boolean;
+  privacy_hide_popup_amounts?: boolean;
 }

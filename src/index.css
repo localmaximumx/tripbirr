@@ -1,32 +1,33 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
   :root {
     --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: 'JetBrains Mono', monospace;
-    --bg-canvas: #F5F7F5;
+    --bg-canvas: #F7F9FC;
     --bg-surface: #FFFFFF;
-    --text-primary: #172B25;
-    --text-secondary: #75847D;
-    --border-subtle: #E3EAE5;
-    --brand-dark: #123C35;
-    --brand-primary: #16866A;
-    --brand-mint: #DDF5E9;
-    --status-success: #22A06B;
-    --status-warning: #E9A23B;
-    --status-error: #D9534F;
+    --text-primary: #0F172A;
+    --text-secondary: #8E9BAE;
+    --border-subtle: #E2E8F0;
+    --brand-dark: #182E6F;
+    --brand-primary: #2CD48D;
+    --brand-blue: #5CA4F8;
+    --status-success: #2CD48D;
+    --status-warning: #F5BA36;
+    --status-error: #F87171;
   }
 
   .dark {
-    --bg-canvas: #101A17;
-    --bg-surface: #192722;
-    --text-primary: #EDF6F0;
-    --text-secondary: #94A8A0;
-    --border-subtle: #253831;
-    --brand-dark: #192722;
-    --brand-primary: #43C99A;
-    --brand-mint: #1D352D;
+    --bg-canvas: #0B0F1A;
+    --bg-surface: #141B2D;
+    --text-primary: #FFFFFF;
+    --text-secondary: #8E9BAE;
+    --border-subtle: #1E2638;
+    --brand-dark: #182E6F;
+    --brand-primary: #2CD48D;
+    --brand-blue: #5CA4F8;
   }
 
   body {
@@ -40,4 +41,52 @@
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
   }
+}
+
+@keyframes tbPulseHalo {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.85;
+  }
+  70% {
+    transform: scale(2.15);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.15);
+    opacity: 0;
+  }
+}
+
+@keyframes tbRouteFlow {
+  to {
+    stroke-dashoffset: -28;
+  }
+}
+
+.tb-pulse-ring {
+  animation: tbPulseHalo 2.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.tb-route-dash {
+  animation: tbRouteFlow 1.4s linear infinite;
+}
+
+/* Clean up Leaflet default container background & attribution for mobile HUD */
+.leaflet-container {
+  background: #0B0F1A !important;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+
+/* Keyless Dark Navy theme for standard OpenStreetMap tiles (only affects map tiles, never markers/overlays) */
+.tb-map-dark .leaflet-tile-pane {
+  filter: invert(100%) hue-rotate(195deg) brightness(92%) contrast(96%) saturate(55%);
+}
+
+.tb-map-light .leaflet-tile-pane {
+  filter: contrast(98%) saturate(95%);
+}
+
+.leaflet-control-attribution {
+  display: none !important;
 }
