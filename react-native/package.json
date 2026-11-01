@@ -17,7 +17,7 @@
     "react-native": "0.78.0",
     "react-native-maps": "^1.20.1",
     "react-native-safe-area-context": "^5.2.0",
-    "react-native-screens": "^4.6.0",
+    "react-native-screens": "4.9.1",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
