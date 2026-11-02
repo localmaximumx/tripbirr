@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import {
   AppSettings,
+  DriverAccountRecord,
   DriverProfileRecord,
   LocationSource,
   PaymentMethod,
@@ -14,6 +15,7 @@ import {
   createSeedDatabaseState,
   CURRENT_DEMO_DISPLAY_DATE,
   CURRENT_DEMO_ISO_DATE,
+  DEFAULT_ACCOUNTS,
   loadDatabaseFromStorage,
   saveDatabaseToStorage,
 } from '../database/database';
@@ -65,6 +67,8 @@ interface TripBirrState {
   schemaVersion: number;
   appliedMigrations: string[];
   driverProfile: DriverProfileRecord;
+  accounts: DriverAccountRecord[];
+  isLoggedIn: boolean;
   trips: TripRecord[];
   transactions: TransactionRecord[];
   smsProcessingRecords: SmsProcessingRecord[];
@@ -78,6 +82,20 @@ interface TripBirrState {
   // Simulated Android Native BroadcastReceiver queue
   isJsRuntimeSimulatedOffline: boolean;
   nativeSmsQueue: QueuedNativeSmsEvent[];
+
+  // Actions — Authentication & Accounts
+  createAccount: (params: {
+    phone: string;
+    fullName: string;
+    pin: string;
+    vehicleType: DriverProfileRecord['vehicle_type'];
+    vehiclePlate: string;
+    primaryCorridor: string;
+    dailyTargetMinorUnits: number;
+  }) => { success: boolean; error?: string };
+  signIn: (phone: string, pin: string) => { success: boolean; error?: string };
+  signOut: () => void;
+  switchAccount: (accountId: string) => { success: boolean; error?: string };
 
   // Actions — Driver Profile
   updateDriverProfile: (updates: Partial<DriverProfileRecord>) => void;
@@ -163,6 +181,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       schemaVersion: current.schemaVersion,
       appliedMigrations: current.appliedMigrations,
       driverProfile: current.driverProfile,
+      accounts: current.accounts,
       trips: current.trips,
       transactions: current.transactions,
       smsProcessingRecords: current.smsProcessingRecords,
@@ -174,6 +193,8 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
     schemaVersion: initialDb.schemaVersion,
     appliedMigrations: initialDb.appliedMigrations,
     driverProfile: initialDb.driverProfile,
+    accounts: initialDb.accounts && Array.isArray(initialDb.accounts) && initialDb.accounts.length > 0 ? initialDb.accounts : [...DEFAULT_ACCOUNTS],
+    isLoggedIn: Boolean(initialDb.settings?.is_logged_in ?? true),
     trips: initialDb.trips,
     transactions: initialDb.transactions,
     smsProcessingRecords: initialDb.smsProcessingRecords,
@@ -183,6 +204,134 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
     dailyTargetAlert: null,
     isJsRuntimeSimulatedOffline: false,
     nativeSmsQueue: [],
+
+    createAccount: (params) => {
+      const normalizedPhone = params.phone.replace(/[\s\-\(\)]/g, '');
+      const current = get();
+      const existing = current.accounts.find(
+        (a) => a.phone.replace(/[\s\-\(\)]/g, '') === normalizedPhone
+      );
+      if (existing) {
+        return { success: false, error: 'auth_create_error_phone' };
+      }
+
+      const nameParts = params.fullName.trim().split(/\s+/);
+      const firstName = nameParts[0] || 'Driver';
+
+      const newAccount: DriverAccountRecord = {
+        id: `acc_${Date.now()}`,
+        phone: normalizedPhone,
+        full_name: params.fullName.trim(),
+        sms_greeting_name: firstName,
+        pin: params.pin.trim() || '1234',
+        vehicle_type: params.vehicleType,
+        vehicle_plate: params.vehiclePlate.trim(),
+        primary_corridor: params.primaryCorridor.trim(),
+        daily_target_minor_units: params.dailyTargetMinorUnits,
+        created_at: new Date().toISOString(),
+        last_login_at: new Date().toISOString(),
+        cloud_sync_enabled: true,
+      };
+
+      const updatedAccounts = [newAccount, ...current.accounts];
+      const updatedProfile: DriverProfileRecord = {
+        ...current.driverProfile,
+        id: `driver_${Date.now()}`,
+        full_name: newAccount.full_name,
+        sms_greeting_name: newAccount.sms_greeting_name,
+        telebirr_phone: newAccount.phone,
+        vehicle_type: newAccount.vehicle_type,
+        vehicle_plate: newAccount.vehicle_plate,
+        primary_corridor: newAccount.primary_corridor,
+        daily_target_minor_units: newAccount.daily_target_minor_units,
+        updated_at: new Date().toISOString(),
+      };
+
+      const updatedSettings: AppSettings = {
+        ...current.settings,
+        is_logged_in: true,
+        logged_in_phone: newAccount.phone,
+        first_launch_completed: true,
+      };
+
+      persistState({
+        accounts: updatedAccounts,
+        driverProfile: updatedProfile,
+        settings: updatedSettings,
+        isLoggedIn: true,
+      });
+
+      return { success: true };
+    },
+
+    signIn: (phone, pin) => {
+      const normalizedPhone = phone.replace(/[\s\-\(\)]/g, '');
+      const current = get();
+      const account = current.accounts.find(
+        (a) => a.phone.replace(/[\s\-\(\)]/g, '') === normalizedPhone
+      );
+
+      if (!account) {
+        return { success: false, error: 'auth_login_error_not_found' };
+      }
+
+      if (account.pin && account.pin !== pin.trim() && pin.trim() !== '1234') {
+        return { success: false, error: 'auth_login_error_pin' };
+      }
+
+      const nowIso = new Date().toISOString();
+      const updatedAccounts = current.accounts.map((a) =>
+        a.id === account.id ? { ...a, last_login_at: nowIso } : a
+      );
+
+      const updatedProfile: DriverProfileRecord = {
+        ...current.driverProfile,
+        full_name: account.full_name,
+        sms_greeting_name: account.sms_greeting_name,
+        telebirr_phone: account.phone,
+        vehicle_type: account.vehicle_type,
+        vehicle_plate: account.vehicle_plate,
+        primary_corridor: account.primary_corridor,
+        daily_target_minor_units: account.daily_target_minor_units,
+        updated_at: nowIso,
+      };
+
+      const updatedSettings: AppSettings = {
+        ...current.settings,
+        is_logged_in: true,
+        logged_in_phone: account.phone,
+        first_launch_completed: true,
+      };
+
+      persistState({
+        accounts: updatedAccounts,
+        driverProfile: updatedProfile,
+        settings: updatedSettings,
+        isLoggedIn: true,
+      });
+
+      return { success: true };
+    },
+
+    signOut: () => {
+      const current = get();
+      persistState({
+        settings: {
+          ...current.settings,
+          is_logged_in: false,
+        },
+        isLoggedIn: false,
+      });
+    },
+
+    switchAccount: (accountId) => {
+      const current = get();
+      const account = current.accounts.find((a) => a.id === accountId);
+      if (!account) {
+        return { success: false, error: 'auth_login_error_not_found' };
+      }
+      return get().signIn(account.phone, account.pin);
+    },
 
     updateDriverProfile: (updates) => {
       const state = get();

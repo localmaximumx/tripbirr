@@ -1,5 +1,6 @@
 import {
   AppSettings,
+  DriverAccountRecord,
   DriverProfileRecord,
   LocationSource,
   PaymentMethod,
@@ -21,11 +22,29 @@ export interface DatabaseState {
   schemaVersion: number;
   appliedMigrations: string[];
   driverProfile: DriverProfileRecord;
+  accounts: DriverAccountRecord[];
   trips: TripRecord[];
   transactions: TransactionRecord[];
   smsProcessingRecords: SmsProcessingRecord[];
   settings: AppSettings;
 }
+
+export const DEFAULT_ACCOUNTS: DriverAccountRecord[] = [
+  {
+    id: 'acc_abebe_01',
+    phone: '0912348747',
+    full_name: 'Abebe Kebede',
+    sms_greeting_name: 'Abebe',
+    pin: '1234',
+    vehicle_type: 'MINIBUS_TAXI',
+    vehicle_plate: 'Code 3 - A58291 AA',
+    primary_corridor: 'Bole ↔ Piassa / Megenagna ↔ Saris',
+    daily_target_minor_units: 200000,
+    created_at: '2026-01-15T08:00:00.000Z',
+    last_login_at: '2026-11-01T14:55:00.000Z',
+    cloud_sync_enabled: true,
+  },
+];
 
 export const DEFAULT_DRIVER_PROFILE: DriverProfileRecord = {
   id: 'driver_abebe_01',
@@ -1067,6 +1086,7 @@ export function createSeedDatabaseState(): DatabaseState {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     appliedMigrations: SQLITE_MIGRATIONS.map((m) => m.name),
     driverProfile: DEFAULT_DRIVER_PROFILE,
+    accounts: [...DEFAULT_ACCOUNTS],
     trips,
     transactions,
     smsProcessingRecords,

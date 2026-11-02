@@ -29,6 +29,7 @@ import { TripActionModal } from './components/TripActionModal';
 import { ManualCashModal } from './components/ManualCashModal';
 import { DriverProfileModal } from './components/DriverProfileModal';
 import { FirstLaunchModal } from './components/FirstLaunchModal';
+import { AuthModal } from './components/AuthModal';
 import { SectionSkeleton } from './components/SectionSkeleton';
 import { getTranslation, Language } from './utils/i18n';
 import {
@@ -68,6 +69,7 @@ export default function App() {
   const [isCashModalOpen, setIsCashModalOpen] = useState(false);
   const [isDriverProfileOpen, setIsDriverProfileOpen] = useState(false);
   const [isFirstLaunchOpen, setIsFirstLaunchOpen] = useState(!settings.first_launch_completed);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   const activeTrip = trips.find((t) => t.status === TripStatus.ACTIVE) || null;
   const selectedTrip = selectedTripId
@@ -351,6 +353,7 @@ export default function App() {
                 <SettingsScreen
                   onOpenDriverProfile={() => setIsDriverProfileOpen(true)}
                   onOpenFirstLaunch={() => setIsFirstLaunchOpen(true)}
+                  onOpenAuthModal={() => setIsAuthModalOpen(true)}
                 />
               )}
             </div>
@@ -445,6 +448,10 @@ export default function App() {
         isOpen={isFirstLaunchOpen}
         onClose={() => setIsFirstLaunchOpen(false)}
         onAccept={() => setIsFirstLaunchOpen(false)}
+      />
+      <AuthModal
+        isOpen={isAuthModalOpen || settings.is_logged_in === false}
+        onClose={() => setIsAuthModalOpen(false)}
       />
     </div>
   );

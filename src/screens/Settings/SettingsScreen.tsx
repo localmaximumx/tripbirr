@@ -3,8 +3,11 @@ import {
   ArrowLeft,
   CheckCircle2,
   ChevronRight,
+  Cloud,
   Code2,
   Database,
+  LogOut,
+  UserCheck,
   Download,
   Edit3,
   EyeOff,
@@ -35,16 +38,19 @@ import { ThemeToggleButton } from '../../components/ThemeToggleButton';
 interface SettingsScreenProps {
   onOpenDriverProfile: () => void;
   onOpenFirstLaunch?: () => void;
+  onOpenAuthModal?: () => void;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onOpenDriverProfile,
   onOpenFirstLaunch,
+  onOpenAuthModal,
 }) => {
   const {
     schemaVersion,
     appliedMigrations,
     driverProfile,
+    accounts,
     trips,
     transactions,
     smsProcessingRecords,
@@ -54,6 +60,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     setLocationPermissionStatus,
     clearSmsAuditLogs,
     resetToSeedDatabase,
+    signOut,
   } = useTripBirrStore();
 
   const isDark = settings.theme === 'dark';
@@ -113,6 +120,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       schemaVersion,
       appliedMigrations,
       driverProfile,
+      accounts,
       trips,
       transactions,
       smsProcessingRecords,
@@ -407,40 +415,81 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         <ThemeToggleButton />
       </div>
 
-      {/* Driver Identity Card (Matches Page 5 verbatim) */}
+      {/* Driver Identity Card with Cloud Ready Status & Auth Switcher */}
       <div
-        onClick={onOpenDriverProfile}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') onOpenDriverProfile();
-        }}
-        className={`rounded-[26px] p-5 flex items-center justify-between gap-4 cursor-pointer transition-transform active:scale-[0.99] ${
+        className={`rounded-[26px] p-5 space-y-3.5 ${
           isDark
             ? 'bg-[#141B2D]'
             : 'bg-white border border-slate-200/80 shadow-xs'
         }`}
       >
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="w-16 h-16 rounded-[20px] bg-[#2CD48D] text-[#052115] font-extrabold text-2xl flex items-center justify-center shrink-0">
-            {initials}
+        <div
+          onClick={onOpenDriverProfile}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onOpenDriverProfile();
+          }}
+          className="flex items-center justify-between gap-4 cursor-pointer"
+        >
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-16 h-16 rounded-[20px] bg-[#2CD48D] text-[#052115] font-extrabold text-2xl flex items-center justify-center shrink-0">
+              {initials}
+            </div>
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2
+                  className={`text-xl font-extrabold truncate ${
+                    isDark ? 'text-white' : 'text-[#0F172A]'
+                  }`}
+                >
+                  {driverProfile.full_name}
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#5CA4F8]/15 text-[#5CA4F8] flex items-center gap-1 shrink-0">
+                  <Cloud className="w-3 h-3" />
+                  Cloud Ready
+                </span>
+              </div>
+              <p className="text-xs font-medium text-[#8E9BAE] truncate mt-0.5">
+                {driverProfile.telebirr_phone} · {vehicleRoleLabel}
+              </p>
+            </div>
           </div>
 
-          <div className="min-w-0">
-            <h2
-              className={`text-xl font-extrabold truncate ${
-                isDark ? 'text-white' : 'text-[#0F172A]'
-              }`}
-            >
-              {driverProfile.full_name}
-            </h2>
-            <p className="text-xs font-medium text-[#8E9BAE] truncate mt-0.5">
-              {driverProfile.telebirr_phone} · {vehicleRoleLabel}
-            </p>
-          </div>
+          <Edit3 className="w-4 h-4 text-[#8E9BAE] shrink-0" />
         </div>
 
-        <Edit3 className="w-4 h-4 text-[#8E9BAE] shrink-0" />
+        {/* Quick Auth Actions */}
+        <div className="flex items-center gap-2 pt-2 border-t border-slate-700/20">
+          <button
+            type="button"
+            onClick={onOpenAuthModal}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+              isDark
+                ? 'bg-[#1E2B45] text-[#5CA4F8] hover:bg-[#263757]'
+                : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+            }`}
+          >
+            <UserCheck className="w-3.5 h-3.5" />
+            <span>{getTranslation('auth_switch_account', lang)}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              signOut();
+              onOpenAuthModal?.();
+            }}
+            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+              isDark
+                ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
+                : 'bg-red-50 text-red-600 hover:bg-red-100'
+            }`}
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>{getTranslation('auth_sign_out', lang)}</span>
+          </button>
+        </div>
       </div>
 
       {/* Segmented Control: Overview | Settings (Matches Page 5) */}
@@ -656,6 +705,31 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </span>
               <span className="text-sm text-[#8E9BAE] flex items-center gap-1">
                 v1.0
+                <ChevronRight className="w-4 h-4" />
+              </span>
+            </button>
+
+            {/* 8. Driver Account & Cloud Sync */}
+            <button
+              type="button"
+              onClick={onOpenAuthModal}
+              className="w-full px-5 py-4 flex items-center justify-between text-left cursor-pointer hover:opacity-90"
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className={`text-sm font-bold ${
+                    isDark ? 'text-white' : 'text-[#0F172A]'
+                  }`}
+                >
+                  {getTranslation('auth_account_status', lang)}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#5CA4F8]/15 text-[#5CA4F8] flex items-center gap-1">
+                  <Cloud className="w-3 h-3" />
+                  Cloud Ready
+                </span>
+              </div>
+              <span className="text-sm text-[#8E9BAE] flex items-center gap-1">
+                {getTranslation('auth_switch_account', lang)}
                 <ChevronRight className="w-4 h-4" />
               </span>
             </button>

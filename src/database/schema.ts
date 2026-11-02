@@ -23,6 +23,21 @@ export enum TransactionStatus {
   FAILED = 'FAILED',
 }
 
+export interface DriverAccountRecord {
+  id: string;
+  phone: string; // Login key e.g. "0911234567" or "+251911234567"
+  full_name: string;
+  sms_greeting_name: string;
+  pin: string; // 4-6 digit local security PIN or password
+  vehicle_type: DriverProfileRecord['vehicle_type'];
+  vehicle_plate: string;
+  primary_corridor: string;
+  daily_target_minor_units: number;
+  created_at: string;
+  last_login_at: string;
+  cloud_sync_enabled?: boolean;
+}
+
 export interface DriverProfileRecord {
   id: string;
   full_name: string;
@@ -113,6 +128,8 @@ export interface AppSettings {
   theme: 'light' | 'dark';
   schema_version: number;
   first_launch_completed?: boolean;
+  is_logged_in?: boolean;
+  logged_in_phone?: string | null;
   // User-configurable Privacy Settings
   privacy_hide_balance?: boolean;
   privacy_mask_sender_names?: boolean;
