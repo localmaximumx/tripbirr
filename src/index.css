@@ -79,6 +79,52 @@
   animation: tbPageEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Staggered Card Entrance Animations for Homepage & Dashboards */
+@keyframes tbCardEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.985);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-card-enter {
+  animation: tbCardEnter 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+@keyframes tbBarGrow {
+  0% {
+    transform: scaleY(0);
+    opacity: 0.2;
+  }
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.animate-bar-grow {
+  transform-origin: bottom;
+  animation: tbBarGrow 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-card-enter,
+  .animate-bar-grow {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
 @keyframes tbShimmer {
   0% {
     background-position: -200% 0;

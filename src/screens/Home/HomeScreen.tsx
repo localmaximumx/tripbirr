@@ -204,7 +204,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   return (
     <div className="space-y-4 pt-3">
       {/* Top Greeting Header + Dark/Light Mode Toggle on the Same Horizontal Line */}
-      <div className="flex items-center justify-between gap-3 pt-2 pb-1">
+      <div
+        style={{ animationDelay: '30ms' }}
+        className="animate-card-enter flex items-center justify-between gap-3 pt-2 pb-1"
+      >
         <div className="min-w-0">
           <p className="text-sm font-medium text-[#8E9BAE]">{settings.language === "am" ? "እሁድ፣ ጥቅምት 22" : "Sunday, Nov 1"}</p>
           <h1
@@ -230,7 +233,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           }
         }}
         aria-label="Today's earnings — tap to open Reports"
-        className="rounded-[28px] bg-[#182E6F] p-6 text-white shadow-lg transition-transform active:scale-[0.99] cursor-pointer hover:brightness-105"
+        style={{ animationDelay: '80ms' }}
+        className="animate-card-enter rounded-[28px] bg-[#182E6F] p-6 text-white shadow-lg transition-transform active:scale-[0.99] cursor-pointer hover:brightness-105"
       >
         <div className="flex items-center justify-between">
           <p className="text-sm font-medium text-[#B4C6EE]">{getTranslation('todays_earnings', (settings.language || 'en') as Language)}</p>
@@ -330,8 +334,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             return (
               <div
                 key={idx}
-                style={{ height: `${slot.heightPx}px` }}
-                className={`w-full rounded-[10px] transition-all ${
+                style={{
+                  height: `${slot.heightPx}px`,
+                  animationDelay: `${150 + idx * 40}ms`,
+                }}
+                className={`w-full rounded-[10px] animate-bar-grow transition-all ${
                   isLast ? 'bg-[#F5BA36]' : 'bg-[#2B4692]'
                 }`}
               />
@@ -351,7 +358,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               onOpenTripDetail(activeTrip.id);
             }
           }}
-          className={`rounded-[24px] p-5 border-[1.5px] transition-transform active:scale-[0.99] cursor-pointer ${
+          style={{ animationDelay: '140ms' }}
+          className={`animate-card-enter rounded-[24px] p-5 border-[1.5px] transition-transform active:scale-[0.99] cursor-pointer ${
             isDark
               ? 'bg-[#141B2D] border-[#5CA4F8]/80'
               : 'bg-white border-[#5CA4F8] shadow-sm'
@@ -411,7 +419,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <button
           type="button"
           onClick={() => onNavigate('transactions')}
-          className={`rounded-[24px] p-5 text-left transition-transform active:scale-[0.99] cursor-pointer ${
+          style={{ animationDelay: '190ms' }}
+          className={`animate-card-enter rounded-[24px] p-5 text-left transition-transform active:scale-[0.99] cursor-pointer ${
             isDark
               ? 'bg-[#141B2D]'
               : 'bg-white border border-slate-200/70 shadow-xs'
@@ -430,7 +439,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <button
           type="button"
           onClick={() => onNavigate('trips')}
-          className={`rounded-[24px] p-5 text-left transition-transform active:scale-[0.99] cursor-pointer ${
+          style={{ animationDelay: '230ms' }}
+          className={`animate-card-enter rounded-[24px] p-5 text-left transition-transform active:scale-[0.99] cursor-pointer ${
             isDark
               ? 'bg-[#141B2D]'
               : 'bg-white border border-slate-200/70 shadow-xs'
@@ -458,7 +468,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               onNavigate('transactions', 'UNASSIGNED');
             }
           }}
-          className={`rounded-[24px] p-4 border-[1.5px] flex items-center justify-between gap-3.5 cursor-pointer transition-transform active:scale-[0.99] ${
+          style={{ animationDelay: '270ms' }}
+          className={`animate-card-enter rounded-[24px] p-4 border-[1.5px] flex items-center justify-between gap-3.5 cursor-pointer transition-transform active:scale-[0.99] ${
             isDark
               ? 'bg-[#272118] border-[#8B6520]'
               : 'bg-[#FEF7E6] border-[#F3D078]'
@@ -498,7 +509,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
       {/* Recent Payments Section — Clicking opens the Transaction Detail Bottom Sheet for that specific person */}
       <section className="pt-2">
-        <div className="flex items-center justify-between mb-3">
+        <div
+          style={{ animationDelay: '300ms' }}
+          className="animate-card-enter flex items-center justify-between mb-3"
+        >
           <h2
             className={`text-xl font-extrabold tracking-tight ${
               isDark ? 'text-white' : 'text-[#0F172A]'
@@ -516,7 +530,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
 
         <div className="space-y-4">
-          {featuredRecent.map((tx) => {
+          {featuredRecent.map((tx, idx) => {
             const isCash = tx.payment_method === PaymentMethod.CASH;
             const amountMajor = (tx.amount_minor_units / 100).toFixed(2);
             const routeText = getTripRouteShort(tx.trip_id);
@@ -537,7 +551,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     setSelectedTxId(tx.id);
                   }
                 }}
-                className="flex items-center justify-between gap-3 py-1 cursor-pointer transition-transform active:scale-[0.99]"
+                style={{ animationDelay: `${340 + idx * 45}ms` }}
+                className="animate-card-enter flex items-center justify-between gap-3 py-1 cursor-pointer transition-transform active:scale-[0.99]"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
                   <div
