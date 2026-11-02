@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronRight, Search } from 'lucide-react';
+import { ChevronRight, Search, Trash2 } from 'lucide-react';
 import { useTripBirrStore } from '../../store/useTripBirrStore';
-import { TripStatus } from '../../database/schema';
+import { TripRecord, TripStatus } from '../../database/schema';
 import { CURRENT_DEMO_ISO_DATE } from '../../database/database';
 import { calculateTripTotalMinorUnits } from '../../services/reports/reportService';
 import { calculateDistanceMeters } from '../../services/location/locationService';
@@ -29,7 +29,7 @@ function formatTripClockTime(iso: string): string {
 export const TripsScreen: React.FC<TripsScreenProps> = ({
   onOpenTripDetail,
 }) => {
-  const { trips, transactions, settings } = useTripBirrStore();
+  const { trips, transactions, settings, deleteTrip } = useTripBirrStore();
 
   const isDark = settings.theme === 'dark';
   const currency = settings.currency_display;
@@ -37,6 +37,7 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | TripStatus>('ALL');
+  const [tripToDelete, setTripToDelete] = useState<TripRecord | null>(null);
 
   const visibleTrips = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -192,31 +193,46 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  {isActive ? (
-                    <span className="px-3 py-1 rounded-full bg-[#5CA4F8] text-[#09152B] text-xs font-extrabold tracking-wide">
-                      ● {getTranslation('active_now', lang)}
-                    </span>
-                  ) : isCancelled ? (
-                    <span className="px-3 py-1 rounded-full bg-[#3A1D28] text-[#F87171] text-xs font-bold">
-                      {getTranslation('cancelled', lang)}
-                    </span>
-                  ) : (
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-bold ${
-                        isDark
-                          ? 'bg-[#1B2D54] text-[#5CA4F8]'
-                          : 'bg-[#E8F1FF] text-[#2563EB]'
-                      }`}
-                    >
-                      {getTranslation('completed', lang)}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {isActive ? (
+                      <span className="px-3 py-1 rounded-full bg-[#5CA4F8] text-[#09152B] text-xs font-extrabold tracking-wide">
+                        ● {getTranslation('active_now', lang)}
+                      </span>
+                    ) : isCancelled ? (
+                      <span className="px-3 py-1 rounded-full bg-[#3A1D28] text-[#F87171] text-xs font-bold">
+                        {getTranslation('cancelled', lang)}
+                      </span>
+                    ) : (
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-bold ${
+                          isDark
+                            ? 'bg-[#1B2D54] text-[#5CA4F8]'
+                            : 'bg-[#E8F1FF] text-[#2563EB]'
+                        }`}
+                      >
+                        {getTranslation('completed', lang)}
+                      </span>
+                    )}
 
-                  <span className="text-xs font-medium text-[#8E9BAE]">
-                    {isActive
-                      ? (lang === 'am' ? `የተጀመረበት፡ ${formatTripClockTime(trip.start_time)}` : `Started ${formatTripClockTime(trip.start_time)}`)
-                      : (lang === 'am' ? `ዛሬ · ${formatTripClockTime(trip.start_time)}` : `Today · ${formatTripClockTime(trip.start_time)}`)}
-                  </span>
+                    <span className="text-xs font-medium text-[#8E9BAE]">
+                      {isActive
+                        ? (lang === 'am' ? `የተጀመረበት፡ ${formatTripClockTime(trip.start_time)}` : `Started ${formatTripClockTime(trip.start_time)}`)
+                        : (lang === 'am' ? `ዛሬ · ${formatTripClockTime(trip.start_time)}` : `Today · ${formatTripClockTime(trip.start_time)}`)}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTripToDelete(trip);
+                    }}
+                    className="p-1.5 rounded-xl text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                    title={getTranslation('delete_trip', lang)}
+                    aria-label="Delete trip"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
 
                 <h3
@@ -259,6 +275,50 @@ export const TripsScreen: React.FC<TripsScreenProps> = ({
           })
         )}
       </div>
+
+      {/* Delete Trip Confirmation Modal */}
+      {tripToDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setTripToDelete(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className={`w-full max-w-sm rounded-3xl p-6 border space-y-4 shadow-2xl animate-in zoom-in-95 duration-200 ${
+              isDark ? 'bg-[#141B2D] border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-red-500/15 text-red-500 flex items-center justify-center shrink-0">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold">{getTranslation('delete_trip_confirm', lang)}</h3>
+                <p className="text-xs text-[#8E9BAE] mt-0.5">{getTranslation('delete_trip_desc', lang)}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setTripToDelete(null)}
+                className="flex-1 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold transition-colors cursor-pointer"
+              >
+                {getTranslation('cancel', lang)}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteTrip(tripToDelete.id);
+                  setTripToDelete(null);
+                }}
+                className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black shadow-lg transition-colors cursor-pointer active:scale-95"
+              >
+                {getTranslation('confirm_delete', lang)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

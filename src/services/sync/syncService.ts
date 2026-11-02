@@ -30,6 +30,93 @@ export function isNetworkAvailable(): boolean {
   return true;
 }
 
+const DELETED_TRIPS_KEY = 'tripbirr_deleted_trips_queue';
+const DELETED_TXS_KEY = 'tripbirr_deleted_txs_queue';
+
+export function getPendingTripDeletions(): string[] {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      return JSON.parse(localStorage.getItem(DELETED_TRIPS_KEY) || '[]');
+    }
+  } catch (_e) {}
+  return [];
+}
+
+export function getPendingTransactionDeletions(): string[] {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      return JSON.parse(localStorage.getItem(DELETED_TXS_KEY) || '[]');
+    }
+  } catch (_e) {}
+  return [];
+}
+
+export function recordTripDeletion(tripId: string, userId?: string | null) {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const existing: string[] = JSON.parse(localStorage.getItem(DELETED_TRIPS_KEY) || '[]');
+      if (!existing.includes(tripId)) {
+        existing.push(tripId);
+        localStorage.setItem(DELETED_TRIPS_KEY, JSON.stringify(existing));
+      }
+    }
+  } catch (_e) {}
+
+  if (userId && isSupabaseConfigured() && isNetworkAvailable()) {
+    (async () => {
+      try {
+        const { error } = await supabase.from('trips').delete().eq('id', tripId).eq('user_id', userId);
+        if (!error) {
+          removePendingTripDeletion(tripId);
+        }
+      } catch (_e) {}
+    })();
+  }
+}
+
+export function recordTransactionDeletion(transactionId: string, userId?: string | null) {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const existing: string[] = JSON.parse(localStorage.getItem(DELETED_TXS_KEY) || '[]');
+      if (!existing.includes(transactionId)) {
+        existing.push(transactionId);
+        localStorage.setItem(DELETED_TXS_KEY, JSON.stringify(existing));
+      }
+    }
+  } catch (_e) {}
+
+  if (userId && isSupabaseConfigured() && isNetworkAvailable()) {
+    (async () => {
+      try {
+        const { error } = await supabase.from('transactions').delete().eq('id', transactionId).eq('user_id', userId);
+        if (!error) {
+          removePendingTransactionDeletion(transactionId);
+        }
+      } catch (_e) {}
+    })();
+  }
+}
+
+export function removePendingTripDeletion(tripId: string) {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const existing: string[] = JSON.parse(localStorage.getItem(DELETED_TRIPS_KEY) || '[]');
+      const filtered = existing.filter((id) => id !== tripId);
+      localStorage.setItem(DELETED_TRIPS_KEY, JSON.stringify(filtered));
+    }
+  } catch (_e) {}
+}
+
+export function removePendingTransactionDeletion(transactionId: string) {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const existing: string[] = JSON.parse(localStorage.getItem(DELETED_TXS_KEY) || '[]');
+      const filtered = existing.filter((id) => id !== transactionId);
+      localStorage.setItem(DELETED_TXS_KEY, JSON.stringify(filtered));
+    }
+  } catch (_e) {}
+}
+
 /**
  * Push pending local records (trips, transactions, audit classifications, profile, settings)
  * up to Supabase with user_id attached.
@@ -65,6 +152,43 @@ export async function syncPush(
   const syncedTripIds: string[] = [];
   const syncedTransactionIds: string[] = [];
   const syncedClassificationIds: string[] = [];
+
+  // 0. Sync Queued Deletions
+  const pendingTripDels = getPendingTripDeletions();
+  if (pendingTripDels.length > 0) {
+    try {
+      const { error: tripDelErr } = await supabase
+        .from('trips')
+        .delete()
+        .eq('user_id', userId)
+        .in('id', pendingTripDels);
+      if (!tripDelErr) {
+        pendingTripDels.forEach((id) => removePendingTripDeletion(id));
+      } else {
+        errors.push(`Trip deletion sync error: ${tripDelErr.message}`);
+      }
+    } catch (e: any) {
+      errors.push(`Trip deletion exception: ${e.message}`);
+    }
+  }
+
+  const pendingTxDels = getPendingTransactionDeletions();
+  if (pendingTxDels.length > 0) {
+    try {
+      const { error: txDelErr } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('user_id', userId)
+        .in('id', pendingTxDels);
+      if (!txDelErr) {
+        pendingTxDels.forEach((id) => removePendingTransactionDeletion(id));
+      } else {
+        errors.push(`Transaction deletion sync error: ${txDelErr.message}`);
+      }
+    } catch (e: any) {
+      errors.push(`Transaction deletion exception: ${e.message}`);
+    }
+  }
 
   // 1. Sync Driver Profile (Only if local profile has valid name and is not guest)
   try {
@@ -363,9 +487,11 @@ export async function syncPull(
       errors.push(`Pull trips error: ${tripsErr.message}`);
     } else if (cloudTrips) {
       downloadedTripsCount = cloudTrips.length;
+      const pendingTripDels = getPendingTripDeletions();
       const localTripMap = new Map<string, TripRecord>(nextState.trips.map((t) => [t.id, t]));
 
       for (const ct of cloudTrips) {
+        if (pendingTripDels.includes(ct.id)) continue;
         const localTrip = localTripMap.get(ct.id);
         const mappedTrip: TripRecord = {
           id: ct.id,
@@ -428,9 +554,11 @@ export async function syncPull(
       errors.push(`Pull transactions error: ${txsErr.message}`);
     } else if (cloudTxs) {
       downloadedTransactionsCount = cloudTxs.length;
+      const pendingTxDels = getPendingTransactionDeletions();
       const localTxMap = new Map<string, TransactionRecord>(nextState.transactions.map((tx) => [tx.id, tx]));
 
       for (const ctx of cloudTxs) {
+        if (pendingTxDels.includes(ctx.id)) continue;
         const localTx = localTxMap.get(ctx.id);
         const mappedTx: TransactionRecord = {
           id: ctx.id,

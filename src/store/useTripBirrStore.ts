@@ -44,6 +44,8 @@ import {
   migrateLocalDataOnRegistration,
   restoreCloudDataOnLogin,
   isNetworkAvailable,
+  recordTripDeletion,
+  recordTransactionDeletion,
   SyncResult,
   SyncState,
 } from '../services/sync/syncService';
@@ -1166,6 +1168,9 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
     deleteTrip: (tripId) => {
       const state = get();
       const nowIso = `${CURRENT_DEMO_ISO_DATE}T${new Date().toISOString().slice(11)}`;
+      const userId = state.cloudUser?.id || state.settings.cloud_user_id || null;
+      recordTripDeletion(tripId, userId);
+
       persistState({
         trips: state.trips.filter((t) => t.id !== tripId),
         transactions: state.transactions.map((tx) =>
@@ -1274,6 +1279,9 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
 
     deleteTransactionRecord: (transactionRecordId) => {
       const state = get();
+      const userId = state.cloudUser?.id || state.settings.cloud_user_id || null;
+      recordTransactionDeletion(transactionRecordId, userId);
+
       persistState({
         transactions: state.transactions.filter((tx) => tx.id !== transactionRecordId),
         pendingAssociationPrompt:
