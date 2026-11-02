@@ -157,7 +157,7 @@ const ADDIS_ROAD_SEGMENTS: RoadEdge[] = [
     points: [
       [9.0046, 38.7825],
       [9.0012, 38.7845],
-      [9.9974, 38.7868],
+      [8.9974, 38.7868],
     ],
   },
   {
@@ -254,6 +254,103 @@ const ADDIS_ROAD_SEGMENTS: RoadEdge[] = [
       [8.9854, 38.7601],
     ],
   },
+  // Merkato to Piassa
+  {
+    from: 'MERKATO',
+    to: 'PIASSA',
+    points: [
+      [9.0308, 38.7369],
+      [9.0335, 38.7445],
+      [9.0358, 38.7524],
+    ],
+  },
+  // 4 Kilo to 5 Kilo, 6 Kilo, and Shiro Meda
+  {
+    from: 'FOUR_KILO',
+    to: 'FIVE_KILO',
+    points: [
+      [9.0331, 38.7636],
+      [9.0365, 38.7632],
+      [9.0398, 38.7628],
+    ],
+  },
+  {
+    from: 'FIVE_KILO',
+    to: 'SIX_KILO',
+    points: [
+      [9.0398, 38.7628],
+      [9.0438, 38.7621],
+      [9.0478, 38.7614],
+    ],
+  },
+  {
+    from: 'SIX_KILO',
+    to: 'SHIRO_MEDA',
+    points: [
+      [9.0478, 38.7614],
+      [9.0552, 38.7616],
+      [9.0625, 38.7618],
+    ],
+  },
+  // Gotera to Meskel Square (Debre Zeit Rd / Lancha / Agona)
+  {
+    from: 'GOTERA',
+    to: 'MESKEL_SQ',
+    points: [
+      [8.9854, 38.7601],
+      [8.9942, 38.7608],
+      [9.0025, 38.7610],
+      [9.0108, 38.7612],
+    ],
+  },
+  // Sarbet to Bisrate Gabriel and Jemo
+  {
+    from: 'SARBET',
+    to: 'BISRATE_GABRIEL',
+    points: [
+      [8.9942, 38.7378],
+      [8.9938, 38.7312],
+      [8.9935, 38.7245],
+    ],
+  },
+  {
+    from: 'BISRATE_GABRIEL',
+    to: 'JEMO',
+    points: [
+      [8.9935, 38.7245],
+      [8.9725, 38.7142],
+      [8.9524, 38.7042],
+    ],
+  },
+  // Megenagna to Gerji and Bole Medhanialem
+  {
+    from: 'MEGENAGNA',
+    to: 'GERJI',
+    points: [
+      [9.0205, 38.8024],
+      [9.0112, 38.8055],
+      [9.0022, 38.8085],
+    ],
+  },
+  {
+    from: 'GERJI',
+    to: 'BOLE_MEDHANIALEM',
+    points: [
+      [9.0022, 38.8085],
+      [8.9998, 38.7975],
+      [8.9974, 38.7868],
+    ],
+  },
+  // CMC to Summit
+  {
+    from: 'CMC',
+    to: 'SUMMIT',
+    points: [
+      [9.0229, 38.8467],
+      [9.0142, 38.8505],
+      [9.0052, 38.8542],
+    ],
+  },
 ];
 
 /**
@@ -330,6 +427,62 @@ function buildCalibratedRoadPolyline(
 }
 
 /**
+ * Breadth-First-Search (BFS) multi-hop pathfinder through the Addis Ababa road network.
+ * Stitches together actual street geometries across multiple connected corridor nodes.
+ */
+function findMultiHopRoadPath(startNodeId: string, endNodeId: string): [number, number][] | null {
+  if (startNodeId === endNodeId) return [];
+
+  // Build bidirectional adjacency map
+  const adj = new Map<string, Array<{ to: string; points: [number, number][] }>>();
+  for (const edge of ADDIS_ROAD_SEGMENTS) {
+    if (!adj.has(edge.from)) adj.set(edge.from, []);
+    if (!adj.has(edge.to)) adj.set(edge.to, []);
+    adj.get(edge.from)!.push({ to: edge.to, points: edge.points });
+    adj.get(edge.to)!.push({ to: edge.from, points: [...edge.points].reverse() });
+  }
+
+  const queue: Array<{ nodeId: string; pathPoints: [number, number][]; visited: Set<string> }> = [
+    { nodeId: startNodeId, pathPoints: [], visited: new Set([startNodeId]) },
+  ];
+
+  while (queue.length > 0) {
+    const { nodeId, pathPoints, visited } = queue.shift()!;
+    if (nodeId === endNodeId) {
+      return pathPoints;
+    }
+
+    const neighbors = adj.get(nodeId) || [];
+    for (const edge of neighbors) {
+      if (!visited.has(edge.to)) {
+        const nextVisited = new Set(visited);
+        nextVisited.add(edge.to);
+
+        const newPoints = [...pathPoints];
+        for (let i = 0; i < edge.points.length; i++) {
+          const pt = edge.points[i];
+          if (
+            newPoints.length === 0 ||
+            Math.abs(newPoints[newPoints.length - 1][0] - pt[0]) > 0.0001 ||
+            Math.abs(newPoints[newPoints.length - 1][1] - pt[1]) > 0.0001
+          ) {
+            newPoints.push(pt);
+          }
+        }
+
+        queue.push({
+          nodeId: edge.to,
+          pathPoints: newPoints,
+          visited: nextVisited,
+        });
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * Offline Corridor Graph Routing
  */
 function getOfflineCorridorRoute(
@@ -341,24 +494,30 @@ function getOfflineCorridorRoute(
   const startMatch = findClosestNode(startLat, startLng);
   const endMatch = findClosestNode(endLat, endLng);
 
-  // If both endpoints are reasonably close to known corridor hubs (within 3km),
-  // extract the pre-bundled road segments.
-  if (startMatch.distance <= 3200 && endMatch.distance <= 3200 && startMatch.node.id !== endMatch.node.id) {
-    const matchedSegment = ADDIS_ROAD_SEGMENTS.find(
-      (s) =>
-        (s.from === startMatch.node.id && s.to === endMatch.node.id) ||
-        (s.from === endMatch.node.id && s.to === startMatch.node.id)
-    );
-
-    if (matchedSegment) {
-      const roadPts: [number, number][] =
-        matchedSegment.from === startMatch.node.id
-          ? [...matchedSegment.points]
-          : [...matchedSegment.points].reverse();
-
+  // If endpoints are within 4.5km of known corridor nodes, traverse the road graph
+  if (startMatch.distance <= 4500 && endMatch.distance <= 4500) {
+    if (startMatch.node.id === endMatch.node.id) {
       const fullPolyline: [number, number][] = [
         [startLat, startLng],
-        ...roadPts,
+        [startMatch.node.lat, startMatch.node.lng],
+        [endLat, endLng],
+      ];
+      const distanceMeters = calculatePolylineMeters(fullPolyline);
+      return {
+        polyline: fullPolyline,
+        distanceMeters,
+        durationSeconds: Math.round((distanceMeters / 1000 / 30) * 3600),
+        source: 'LOCAL_CORRIDOR_GRAPH',
+        formattedDistanceKm: (distanceMeters / 1000).toFixed(1),
+        isActualRoad: true,
+      };
+    }
+
+    const multiHopRoadPts = findMultiHopRoadPath(startMatch.node.id, endMatch.node.id);
+    if (multiHopRoadPts && multiHopRoadPts.length > 0) {
+      const fullPolyline: [number, number][] = [
+        [startLat, startLng],
+        ...multiHopRoadPts,
         [endLat, endLng],
       ];
 

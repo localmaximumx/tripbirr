@@ -16,6 +16,7 @@ import {
   calculateDistanceMeters,
 } from '../services/location/locationService';
 import {
+  calculatePolylineMeters,
   getHybridRoadRoute,
   RoadRouteResult,
 } from '../services/location/routingService';
@@ -156,19 +157,29 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
   const startLng = trip.start_longitude ?? 38.7675;
 
   const [liveLat, setLiveLat] = useState<number>(
-    trip.end_latitude ?? startLat + 0.0065
+    trip.end_latitude ?? startLat
   );
   const [liveLng, setLiveLng] = useState<number>(
-    trip.end_longitude ?? startLng + 0.0082
+    trip.end_longitude ?? startLng
   );
   const [livePlaceLabel, setLivePlaceLabel] = useState<string>(
-    trip.end_location_name || 'Urael / Atlas, Addis Ababa'
+    trip.end_location_name || trip.start_location_name || 'Addis Ababa'
   );
   const [isUpdatingGps, setIsUpdatingGps] = useState<boolean>(false);
   const [roadRoute, setRoadRoute] = useState<RoadRouteResult | null>(null);
 
   useEffect(() => {
     let isMounted = true;
+    const hasRecorded = trip.route_polyline && trip.route_polyline.length >= 2;
+    const hasMoved = calculateDistanceMeters(startLat, startLng, liveLat, liveLng) > 35;
+    const isCompleted = trip.status === TripStatus.COMPLETED;
+
+    // Only route if trip is completed or driver has moved / set destination
+    if (!isCompleted && !hasMoved && !hasRecorded && !trip.end_latitude) {
+      setRoadRoute(null);
+      return;
+    }
+
     getHybridRoadRoute(
       startLat,
       startLng,
@@ -191,7 +202,7 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [trip.id, startLat, startLng, liveLat, liveLng]);
+  }, [trip.id, trip.status, trip.end_latitude, trip.route_polyline, trip.route_distance_meters, startLat, startLng, liveLat, liveLng]);
 
   // Leaflet GPS Map refs
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -228,11 +239,9 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
       setLiveLng(trip.end_longitude);
       setLivePlaceLabel(trip.end_location_name || 'Destination');
     } else {
-      const nextLat = trip.end_latitude ?? sLat + 0.0065;
-      const nextLng = trip.end_longitude ?? sLng + 0.0082;
-      setLiveLat(nextLat);
-      setLiveLng(nextLng);
-      setLivePlaceLabel(trip.end_location_name || 'Urael / Atlas, Addis Ababa');
+      setLiveLat(trip.end_latitude ?? sLat);
+      setLiveLng(trip.end_longitude ?? sLng);
+      setLivePlaceLabel(trip.end_location_name || trip.start_location_name || 'Starting Point');
     }
     setPan({ x: 0, y: 0 });
     setScale(1.45);
@@ -247,7 +256,7 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
     trip.end_location_name,
   ]);
 
-  // Subscribe to real device geolocation updates while trip is ACTIVE
+  // Subscribe to real device geolocation updates and record actual road breadcrumbs while trip is ACTIVE
   useEffect(() => {
     if (!isTripActive || typeof navigator === 'undefined' || !navigator.geolocation) {
       return;
@@ -261,6 +270,25 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
         setLiveLng(nextLng);
         const resolved = await reverseGeocodeWithOfflineFallback(nextLat, nextLng);
         setLivePlaceLabel(resolved);
+
+        // Record actual road breadcrumb while driving if moved >= 20m from previous point
+        const currentBreadcrumbs: [number, number][] =
+          trip.route_polyline && trip.route_polyline.length > 0
+            ? trip.route_polyline
+            : [[startLat, startLng]];
+
+        const lastPoint = currentBreadcrumbs[currentBreadcrumbs.length - 1];
+        const movedFromLast = calculateDistanceMeters(lastPoint[0], lastPoint[1], nextLat, nextLng);
+
+        if (movedFromLast >= 20) {
+          const nextPolyline: [number, number][] = [...currentBreadcrumbs, [nextLat, nextLng]];
+          const nextMeters = calculatePolylineMeters(nextPolyline);
+          updateTripDetails(trip.id, {
+            route_polyline: nextPolyline,
+            route_distance_meters: nextMeters,
+            route_source: 'LOCAL_CORRIDOR_GRAPH',
+          });
+        }
       },
       () => {},
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
@@ -269,7 +297,7 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
     return () => {
       navigator.geolocation.clearWatch(watchId);
     };
-  }, [isTripActive]);
+  }, [isTripActive, trip.id, trip.route_polyline, startLat, startLng, updateTripDetails]);
 
   const startShort = trip.start_location_name.replace(', Addis Ababa', '');
   const currentShort = livePlaceLabel.replace(', Addis Ababa', '');
@@ -316,7 +344,7 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
     };
   }, [mapMode]);
 
-  // Update Leaflet Route & Pins (Only Start Pin + Current/Destination Pin + Curved Route)
+  // Update Leaflet Route & Pins (Standby Pin if just started, or Full Road Polyline if moved/completed)
   useEffect(() => {
     if (mapMode !== 'GPS' || !leafletMapRef.current || !layerGroupRef.current) {
       return;
@@ -326,8 +354,38 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
     const group = layerGroupRef.current;
     group.clearLayers();
 
+    const hasRecordedPath = trip.route_polyline && trip.route_polyline.length >= 2;
+    const hasMoved = calculateDistanceMeters(startLat, startLng, liveLat, liveLng) > 35;
+    const isCompleted = trip.status === TripStatus.COMPLETED;
+    const shouldDrawRoute = isCompleted || hasRecordedPath || hasMoved;
+
+    if (!shouldDrawRoute) {
+      // Driver has just started trip and hasn't moved yet — display pulsing standby pin, NO line to nowhere
+      const standbyIcon = L.divIcon({
+        className: 'bg-transparent border-0',
+        iconSize: [160, 60],
+        iconAnchor: [80, 48],
+        html: `
+          <div style="display:flex;flex-direction:column;align-items:center;pointer-events:none;">
+            <div style="background:#141B2D;color:#2CD48D;border:1.5px solid #2CD48D;padding:3px 10px;border-radius:999px;font-size:10px;font-weight:800;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,0.55);margin-bottom:6px;">
+              ${startShort.slice(0, 16)} • ${lang === 'am' ? 'በመጠባበቅ ላይ' : 'Standby'}
+            </div>
+            <div style="position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;">
+              <div class="tb-pulse-ring" style="position:absolute;inset:-8px;border-radius:999px;background:rgba(44,212,141,0.35);"></div>
+              <div style="width:18px;height:18px;border-radius:999px;background:#2CD48D;border:3px solid #0B0F1A;box-shadow:0 0 10px rgba(44,212,141,0.8);"></div>
+            </div>
+          </div>
+        `,
+      });
+      L.marker([startLat, startLng], { icon: standbyIcon }).addTo(group);
+      map.setView([startLat, startLng], 15);
+      return;
+    }
+
     const routePts =
-      roadRoute?.polyline && roadRoute.polyline.length >= 2
+      trip.route_polyline && trip.route_polyline.length >= 2
+        ? trip.route_polyline
+        : roadRoute?.polyline && roadRoute.polyline.length >= 2
         ? roadRoute.polyline
         : buildCurvedLatLngs(startLat, startLng, liveLat, liveLng);
 
@@ -403,12 +461,19 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
       [liveLat, liveLng],
     ]);
     map.fitBounds(bounds, { padding: [46, 46], maxZoom: 16 });
-  }, [mapMode, startLat, startLng, liveLat, liveLng, startShort, currentShort]);
+  }, [mapMode, startLat, startLng, liveLat, liveLng, startShort, currentShort, trip.status, trip.route_polyline, roadRoute, lang]);
+
+  const hasRecordedPath = trip.route_polyline && trip.route_polyline.length >= 2;
+  const hasMoved = calculateDistanceMeters(startLat, startLng, liveLat, liveLng) > 35;
+  const isCompleted = trip.status === TripStatus.COMPLETED;
+  const shouldDrawRoute = isCompleted || hasRecordedPath || hasMoved;
 
   const displacementKm = (
     calculateDistanceMeters(startLat, startLng, liveLat, liveLng) / 1000
   ).toFixed(2);
-  const distanceKmDisplay = roadRoute
+  const distanceKmDisplay = !shouldDrawRoute
+    ? '0.0'
+    : roadRoute
     ? roadRoute.formattedDistanceKm
     : displacementKm;
 
@@ -634,7 +699,11 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
               {distanceKmDisplay} km
             </span>
             <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-[#2CD48D]/20 text-[#2CD48D]">
-              {roadRoute?.isActualRoad ? (lang === 'am' ? 'ትክክለኛ መንገድ' : 'Road') : (lang === 'am' ? 'ግምት መንገድ' : 'Est. Road')}
+              {!shouldDrawRoute
+                ? (lang === 'am' ? 'በመጠባበቅ ላይ' : 'Standby')
+                : roadRoute?.isActualRoad
+                ? (lang === 'am' ? 'ትክክለኛ መንገድ' : 'Road')
+                : (lang === 'am' ? 'የተመዘገበ መስመር' : 'Recorded')}
             </span>
           </div>
 
@@ -845,75 +914,77 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
                   );
                 })}
 
-              {/* Real Road Route Polyline or Clean Fallback Ribbon */}
-              {roadRoute?.polyline && roadRoute.polyline.length >= 2 ? (
-                (() => {
-                  const svgRoadPts = roadRoute.polyline
-                    .map(([lat, lng]: [number, number]) => {
-                      const p = projectToSvg(lat, lng);
-                      return `${p.x},${p.y}`;
-                    })
-                    .join(' ');
-                  return (
-                    <g>
-                      <polyline
-                        points={svgRoadPts}
-                        fill="none"
-                        stroke="#5CA4F8"
-                        strokeOpacity="0.32"
-                        strokeWidth="11"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <polyline
-                        points={svgRoadPts}
-                        fill="none"
-                        stroke="url(#activeRouteGradient)"
-                        strokeWidth="5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <polyline
-                        points={svgRoadPts}
-                        fill="none"
-                        stroke="#FFFFFF"
-                        strokeOpacity="0.75"
-                        strokeWidth="2"
-                        strokeDasharray="6 12"
-                        className="tb-route-dash"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </g>
-                  );
-                })()
-              ) : (
-                <g>
-                  <path
-                    d={`M ${startPt.x} ${startPt.y} Q ${ctrlX} ${ctrlY} ${currentPt.x} ${currentPt.y}`}
-                    fill="none"
-                    stroke="#5CA4F8"
-                    strokeOpacity="0.28"
-                    strokeWidth="12"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d={`M ${startPt.x} ${startPt.y} Q ${ctrlX} ${ctrlY} ${currentPt.x} ${currentPt.y}`}
-                    fill="none"
-                    stroke="url(#activeRouteGradient)"
-                    strokeWidth="5"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d={`M ${startPt.x} ${startPt.y} Q ${ctrlX} ${ctrlY} ${currentPt.x} ${currentPt.y}`}
-                    fill="none"
-                    stroke="#FFFFFF"
-                    strokeOpacity="0.75"
-                    strokeWidth="2"
-                    strokeDasharray="6 12"
-                    className="tb-route-dash"
-                  />
-                </g>
+              {/* Real Road Route Polyline or Clean Fallback Ribbon (Only if moved or completed) */}
+              {shouldDrawRoute && (
+                roadRoute?.polyline && roadRoute.polyline.length >= 2 ? (
+                  (() => {
+                    const svgRoadPts = roadRoute.polyline
+                      .map(([lat, lng]: [number, number]) => {
+                        const p = projectToSvg(lat, lng);
+                        return `${p.x},${p.y}`;
+                      })
+                      .join(' ');
+                    return (
+                      <g>
+                        <polyline
+                          points={svgRoadPts}
+                          fill="none"
+                          stroke="#5CA4F8"
+                          strokeOpacity="0.32"
+                          strokeWidth="11"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <polyline
+                          points={svgRoadPts}
+                          fill="none"
+                          stroke="url(#activeRouteGradient)"
+                          strokeWidth="5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <polyline
+                          points={svgRoadPts}
+                          fill="none"
+                          stroke="#FFFFFF"
+                          strokeOpacity="0.75"
+                          strokeWidth="2"
+                          strokeDasharray="6 12"
+                          className="tb-route-dash"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </g>
+                    );
+                  })()
+                ) : (
+                  <g>
+                    <path
+                      d={`M ${startPt.x} ${startPt.y} Q ${ctrlX} ${ctrlY} ${currentPt.x} ${currentPt.y}`}
+                      fill="none"
+                      stroke="#5CA4F8"
+                      strokeOpacity="0.28"
+                      strokeWidth="12"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d={`M ${startPt.x} ${startPt.y} Q ${ctrlX} ${ctrlY} ${currentPt.x} ${currentPt.y}`}
+                      fill="none"
+                      stroke="url(#activeRouteGradient)"
+                      strokeWidth="5"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d={`M ${startPt.x} ${startPt.y} Q ${ctrlX} ${ctrlY} ${currentPt.x} ${currentPt.y}`}
+                      fill="none"
+                      stroke="#FFFFFF"
+                      strokeOpacity="0.75"
+                      strokeWidth="2"
+                      strokeDasharray="6 12"
+                      className="tb-route-dash"
+                    />
+                  </g>
+                )
               )}
 
               {/* Start Origin Pin */}
@@ -955,52 +1026,54 @@ export const LiveTripMap: React.FC<LiveTripMapProps> = ({
                 </text>
               </g>
 
-              {/* Current / Destination Navigation Puck Pin */}
-              <g filter="url(#pinDropShadow)">
-                <circle
-                  cx={currentPt.x}
-                  cy={currentPt.y}
-                  r="20"
-                  fill="rgba(44, 212, 141, 0.22)"
-                  stroke="rgba(44, 212, 141, 0.55)"
-                  strokeWidth="1"
-                />
-                <circle
-                  cx={currentPt.x}
-                  cy={currentPt.y}
-                  r="11"
-                  fill="#2CD48D"
-                  stroke="#0B0F1A"
-                  strokeWidth="2.5"
-                />
-                <path
-                  d={`M ${currentPt.x} ${currentPt.y - 5.5} L ${currentPt.x - 4.5} ${
-                    currentPt.y + 4.5
-                  } L ${currentPt.x} ${currentPt.y + 2.2} L ${currentPt.x + 4.5} ${
-                    currentPt.y + 4.5
-                  } Z`}
-                  fill="#052115"
-                />
-                <rect
-                  x={currentPt.x - 54}
-                  y={currentPt.y - 37}
-                  width="108"
-                  height="21"
-                  rx="10.5"
-                  fill="#2CD48D"
-                />
-                <text
-                  x={currentPt.x}
-                  y={currentPt.y - 23.5}
-                  textAnchor="middle"
-                  fill="#052115"
-                  fontSize="9"
-                  fontWeight="800"
-                  fontFamily="Plus Jakarta Sans, sans-serif"
-                >
-                  {currentShort.slice(0, 15)}
-                </text>
-              </g>
+              {/* Current / Destination Navigation Puck Pin (Only if moved or completed) */}
+              {shouldDrawRoute && (
+                <g filter="url(#pinDropShadow)">
+                  <circle
+                    cx={currentPt.x}
+                    cy={currentPt.y}
+                    r="20"
+                    fill="rgba(44, 212, 141, 0.22)"
+                    stroke="rgba(44, 212, 141, 0.55)"
+                    strokeWidth="1"
+                  />
+                  <circle
+                    cx={currentPt.x}
+                    cy={currentPt.y}
+                    r="11"
+                    fill="#2CD48D"
+                    stroke="#0B0F1A"
+                    strokeWidth="2.5"
+                  />
+                  <path
+                    d={`M ${currentPt.x} ${currentPt.y - 5.5} L ${currentPt.x - 4.5} ${
+                      currentPt.y + 4.5
+                    } L ${currentPt.x} ${currentPt.y + 2.2} L ${currentPt.x + 4.5} ${
+                      currentPt.y + 4.5
+                    } Z`}
+                    fill="#052115"
+                  />
+                  <rect
+                    x={currentPt.x - 54}
+                    y={currentPt.y - 37}
+                    width="108"
+                    height="21"
+                    rx="10.5"
+                    fill="#2CD48D"
+                  />
+                  <text
+                    x={currentPt.x}
+                    y={currentPt.y - 23.5}
+                    textAnchor="middle"
+                    fill="#052115"
+                    fontSize="9"
+                    fontWeight="800"
+                    fontFamily="Plus Jakarta Sans, sans-serif"
+                  >
+                    {currentShort.slice(0, 15)}
+                  </text>
+                </g>
+              )}
             </svg>
           </div>
         )}

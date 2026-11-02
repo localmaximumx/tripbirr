@@ -106,6 +106,11 @@ export default function App() {
           body: data.body,
           receivedAt: data.timestamp ? new Date(data.timestamp).toISOString() : new Date().toISOString(),
         });
+        if (data.fingerprint && (window as any).TripBirrNative?.acknowledgeSms) {
+          try {
+            (window as any).TripBirrNative.acknowledgeSms(data.fingerprint);
+          } catch (_e) {}
+        }
       }
     };
 
@@ -395,8 +400,17 @@ export default function App() {
           activeTrip={activeTrip}
           isOpen={Boolean(tripModalMode)}
           onClose={() => setTripModalMode(null)}
-          onConfirmStart={(params) => startTrip(params)}
-          onConfirmEnd={(tripId, params) => endTrip(tripId, params)}
+          onConfirmStart={(params) => {
+            const newTrip = startTrip(params);
+            if (newTrip) {
+              setActiveTab('trips');
+              setSelectedTripId(newTrip.id);
+            }
+          }}
+          onConfirmEnd={(tripId, params) => {
+            endTrip(tripId, params);
+            setSelectedTripId(null);
+          }}
         />
       )}
 
