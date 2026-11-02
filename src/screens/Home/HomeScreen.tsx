@@ -181,10 +181,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     return trips.find((t) => t.id === selectedTx.trip_id) || null;
   }, [selectedTx, trips]);
 
-  const getTripRouteShort = (tripId: string | null): string => {
-    if (!tripId) return getTranslation('needs_trip', lang);
+  const getTripRouteShort = (tripId: string | null): string | null => {
+    if (!tripId) return null;
     const tr = trips.find((t) => t.id === tripId);
-    if (!tr) return getTranslation('unassigned', lang);
+    if (!tr) return null;
     const startShort = tr.start_location_name.replace(', Addis Ababa', '');
     const endShort = tr.end_location_name
       ? tr.end_location_name.replace(', Addis Ababa', '')
@@ -684,8 +684,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     >
                       {displayName}
                     </p>
-                    <p className="text-xs text-[#8E9BAE] truncate mt-0.5">
-                      {isCash ? getTranslation('manual', lang) : getTranslation('telebirr', lang)} · {time12} · {routeText}
+                    <p className="text-xs text-[#8E9BAE] truncate mt-0.5 flex items-center gap-1.5">
+                      <span>{isCash ? getTranslation('manual', lang) : getTranslation('telebirr', lang)}</span>
+                      <span>·</span>
+                      <span>{time12}</span>
+                      <span>·</span>
+                      {routeText ? (
+                        <span className="truncate">{routeText}</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#FEF7E6] dark:bg-[#332614] text-[#B45309] dark:text-[#F5BA36] border border-[#F3D078]/60 dark:border-[#8B6520]/60 shrink-0">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#F5BA36]" />
+                          <span>{lang === 'am' ? 'ያልተገናኘ' : 'Unassigned'}</span>
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>

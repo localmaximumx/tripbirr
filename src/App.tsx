@@ -32,6 +32,7 @@ import { SmsSimulatorDrawer } from './components/SmsSimulatorDrawer';
 import { AuthModal } from './components/AuthModal';
 import { SectionSkeleton } from './components/SectionSkeleton';
 import { PullToRefresh } from './components/PullToRefresh';
+import { SwipeableNotificationCard } from './components/SwipeableNotificationCard';
 import { getTranslation, Language } from './utils/i18n';
 import {
   formatMinorUnits,
@@ -228,10 +229,17 @@ export default function App() {
 
         {/* Floating Overlay Pop-Up Stack (Payment Alert + Daily Target Achievement — Never pushes page text downward) */}
         {(showFloatingPopup || dailyTargetAlert) && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 w-full max-w-[406px] px-3 z-[60] pointer-events-none space-y-2.5">
+          <div
+            style={{ top: 'max(1.75rem, env(safe-area-inset-top, 1.75rem))' }}
+            className="fixed left-1/2 -translate-x-1/2 w-full max-w-[416px] px-4 z-[70] pointer-events-none space-y-3"
+          >
             {/* Daily Target Achievement Pop-Up */}
             {dailyTargetAlert && (
-              <div className="pointer-events-auto rounded-2xl bg-[#182E6F]/95 backdrop-blur-md text-white p-4 border border-[#F5BA36]/70 shadow-[0_16px_40px_rgba(0,0,0,0.55)] animate-in fade-in slide-in-from-top-3 duration-200">
+              <SwipeableNotificationCard
+                onDismiss={dismissDailyTargetAlert}
+                ariaLabel="Daily target achievement notification"
+                className="rounded-2xl sm:rounded-[22px] bg-[#182E6F]/95 backdrop-blur-md text-white p-4 sm:p-5 border border-[#F5BA36]/70 shadow-[0_20px_48px_rgba(0,0,0,0.55)] animate-in fade-in slide-in-from-top-3 duration-200"
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="text-xs font-extrabold uppercase tracking-wider text-[#F5BA36]">
@@ -267,12 +275,22 @@ export default function App() {
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
-              </div>
+              </SwipeableNotificationCard>
             )}
 
             {/* Incoming Telebirr 127 Payment / Trip Association Pop-Up */}
             {showFloatingPopup && (
-              <div className="pointer-events-auto rounded-2xl bg-[#131926]/95 backdrop-blur-md text-white p-4 border border-[#2CD48D]/50 shadow-[0_16px_40px_rgba(0,0,0,0.55)] space-y-2.5 animate-in fade-in slide-in-from-top-3 duration-200">
+              <SwipeableNotificationCard
+                onDismiss={() => {
+                  if (validPendingPrompt) {
+                    confirmPendingTripAssociation(false);
+                  } else {
+                    dismissAlert();
+                  }
+                }}
+                ariaLabel="Incoming payment notification"
+                className="rounded-2xl sm:rounded-[22px] bg-[#131926]/95 backdrop-blur-md text-white p-4 sm:p-5 border border-[#2CD48D]/50 shadow-[0_20px_48px_rgba(0,0,0,0.55)] space-y-2.5 animate-in fade-in slide-in-from-top-3 duration-200"
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs text-[#2CD48D] font-bold">
                     <span>{lang === 'am' ? 'የቴሌብር 127 ክፍያ ደርሷል' : 'Telebirr 127 received'}</span>
@@ -367,7 +385,7 @@ export default function App() {
                     </div>
                   </>
                 )}
-              </div>
+              </SwipeableNotificationCard>
             )}
           </div>
         )}

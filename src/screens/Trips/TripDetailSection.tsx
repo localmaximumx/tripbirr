@@ -56,7 +56,7 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
   onOpenTripModal,
   onOpenCashModal,
 }) => {
-  const { transactions, settings, assignTransactionToTrip, deleteTrip, deleteTransactionRecord } = useTripBirrStore();
+  const { transactions, settings, assignTransactionToTrip, deleteTrip } = useTripBirrStore();
 
   const isDark = settings.theme === 'dark';
   const currency = settings.currency_display;
@@ -69,7 +69,6 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
   const dragStartYRef = useRef<number | null>(null);
   const [selectedTx, setSelectedTx] = useState<TransactionRecord | null>(null);
   const [showDeleteTripConfirm, setShowDeleteTripConfirm] = useState(false);
-  const [showDeleteTxConfirm, setShowDeleteTxConfirm] = useState(false);
 
   useEffect(() => {
     const id = requestAnimationFrame(() => setIsEntered(true));
@@ -570,64 +569,6 @@ export const TripDetailSection: React.FC<TripDetailSectionProps> = ({
                 <p className="text-xs text-[#8E9BAE] mt-0.5">
                   {lang === 'am' ? 'የተጀመረበት፡ ' : 'Started '}{formatClock12Hour(trip.start_time)}
                 </p>
-              </div>
-
-              {/* Delete Payment Action inside Trip Detail */}
-              <div className="pt-2">
-                {!showDeleteTxConfirm ? (
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteTxConfirm(true)}
-                    className={`w-full py-3 px-4 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98 ${
-                      isDark
-                        ? 'border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500/20'
-                        : 'border-red-200 text-red-600 bg-red-50 hover:bg-red-100'
-                    }`}
-                  >
-                    <Trash2 className="w-4 h-4 text-red-500" />
-                    <span>{getTranslation('delete_payment', lang)}</span>
-                  </button>
-                ) : (
-                  <div
-                    className={`p-4 rounded-2xl border space-y-3 animate-in fade-in ${
-                      isDark
-                        ? 'bg-red-950/20 border-red-500/40 text-white'
-                        : 'bg-red-50 border-red-200 text-slate-900'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-black text-red-400">
-                          {getTranslation('delete_payment_confirm', lang)}
-                        </p>
-                        <p className="text-xs text-[#8E9BAE] mt-0.5">
-                          {getTranslation('delete_payment_desc', lang)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => setShowDeleteTxConfirm(false)}
-                        className="flex-1 py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold transition-colors cursor-pointer"
-                      >
-                        {getTranslation('cancel', lang)}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          deleteTransactionRecord(selectedTx.id);
-                          setSelectedTx(null);
-                          setShowDeleteTxConfirm(false);
-                        }}
-                        className="flex-1 py-2 px-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black shadow-lg transition-colors cursor-pointer active:scale-95"
-                      >
-                        {getTranslation('confirm_delete', lang)}
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>

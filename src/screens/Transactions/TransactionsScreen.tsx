@@ -453,13 +453,14 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                                   e.stopPropagation();
                                   setSelectedTxId(tx.id);
                                 }}
-                                className={`px-3 py-1 rounded-full text-xs font-bold transition-opacity hover:opacity-90 cursor-pointer ${
+                                className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold flex items-center gap-1.5 transition-opacity hover:opacity-90 cursor-pointer ${
                                   isDark
-                                    ? 'bg-[#332614] text-[#F5BA36]'
-                                    : 'bg-[#FEF7E6] text-[#B45309]'
+                                    ? 'bg-[#332614] text-[#F5BA36] border border-[#8B6520]/50'
+                                    : 'bg-[#FEF7E6] text-[#B45309] border border-[#F3D078]'
                                 }`}
                               >
-                                {getTranslation('needs_trip', lang)}
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#F5BA36]" />
+                                <span>{lang === 'am' ? 'ያልተገናኘ' : 'Unassigned'}</span>
                               </button>
                             )}
                           </div>

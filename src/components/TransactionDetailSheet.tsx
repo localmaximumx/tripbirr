@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Route, Trash2, User, X } from 'lucide-react';
+import { Route, User, X } from 'lucide-react';
 import { useTripBirrStore } from '../store/useTripBirrStore';
 import { PaymentMethod, TransactionRecord, TripStatus } from '../database/schema';
 import { formatPayerName, formatPhonePrivacy } from '../utils/formatters';
@@ -27,7 +27,7 @@ export const TransactionDetailSheet: React.FC<TransactionDetailSheetProps> = ({
   transaction,
   onClose,
 }) => {
-  const { trips, settings, assignTransactionToTrip, deleteTransactionRecord } = useTripBirrStore();
+  const { trips, settings, assignTransactionToTrip } = useTripBirrStore();
 
   const isDark = settings.theme === 'dark';
   const currency = settings.currency_display;
@@ -35,13 +35,7 @@ export const TransactionDetailSheet: React.FC<TransactionDetailSheetProps> = ({
 
   const [dragOffsetY, setDragOffsetY] = useState(0);
   const [isClosing, setIsClosing] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const dragStartYRef = useRef<number | null>(null);
-
-  // Reset delete state when transaction changes
-  useEffect(() => {
-    setShowDeleteConfirm(false);
-  }, [transaction?.id]);
 
   // Close smoothly with slide-down animation
   const handleClose = () => {
@@ -328,78 +322,26 @@ export const TransactionDetailSheet: React.FC<TransactionDetailSheetProps> = ({
             <div
               className={`rounded-2xl p-4 border text-xs ${
                 isDark
-                  ? 'bg-[#0B0F1A] border-white/10 text-[#8E9BAE]'
-                  : 'bg-[#F7F9FC] border-slate-200/80 text-slate-600'
+                  ? 'bg-[#272118] border-[#8B6520]/60 text-[#CBD5E1]'
+                  : 'bg-[#FEF7E6] border-[#F3D078] text-slate-700'
               }`}
             >
-              <p className="font-extrabold text-[#F5BA36] flex items-center gap-1.5">
-                <Route className="w-3.5 h-3.5" />
-                <span>{getTranslation('unassigned_payments', lang)}</span>
-              </p>
-              <p className="mt-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase tracking-wider text-[#F5BA36] flex items-center gap-1.5">
+                  <Route className="w-3.5 h-3.5" />
+                  <span>{lang === 'am' ? 'ያልተገናኘ ክፍያ' : 'Unassigned Payment'}</span>
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-[#F5BA36]/20 text-[#F5BA36]">
+                  {lang === 'am' ? 'ያልተገናኘ' : 'UNASSIGNED'}
+                </span>
+              </div>
+              <p className="mt-1.5 leading-relaxed">
                 {lang === 'am'
-                  ? 'በአሁኑ ሰዓት የሚካሄድ ጉዞ የለም። ክፍያዎች ሊገናኙ የሚችሉት ንቁ ከሆኑ ጉዞዎች ጋር ብቻ ነው።'
-                  : 'No active trip right now. Payments can only be linked to an active trip.'}
+                  ? 'ይህ ክፍያ ከማንኛውም ጉዞ ጋር አልተገናኘም። ንቁ ጉዞ ሲጀምሩ ከጉዞው ጋር ማገናኘት ይችላሉ።'
+                  : 'This payment is unassigned to any trip. You can link it when an active trip is running.'}
               </p>
             </div>
           )}
-
-          {/* Delete Payment Action */}
-          <div className="pt-2">
-            {!showDeleteConfirm ? (
-              <button
-                type="button"
-                onClick={() => setShowDeleteConfirm(true)}
-                className={`w-full py-3.5 px-4 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98 ${
-                  isDark
-                    ? 'border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500/20'
-                    : 'border-red-200 text-red-600 bg-red-50 hover:bg-red-100'
-                }`}
-              >
-                <Trash2 className="w-4 h-4 text-red-500" />
-                <span>{getTranslation('delete_payment', lang)}</span>
-              </button>
-            ) : (
-              <div
-                className={`p-4 rounded-2xl border space-y-3 animate-in fade-in ${
-                  isDark
-                    ? 'bg-red-950/20 border-red-500/40 text-white'
-                    : 'bg-red-50 border-red-200 text-slate-900'
-                }`}
-              >
-                <div className="flex items-start gap-2.5">
-                  <Trash2 className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-black text-red-400">
-                      {getTranslation('delete_payment_confirm', lang)}
-                    </p>
-                    <p className="text-xs text-[#8E9BAE] mt-0.5">
-                      {getTranslation('delete_payment_desc', lang)}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="flex-1 py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    {getTranslation('cancel', lang)}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      deleteTransactionRecord(transaction.id);
-                      handleClose();
-                    }}
-                    className="flex-1 py-2.5 px-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-black shadow-lg transition-colors cursor-pointer active:scale-95"
-                  >
-                    {getTranslation('confirm_delete', lang)}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>,
