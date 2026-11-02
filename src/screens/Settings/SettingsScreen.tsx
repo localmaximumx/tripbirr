@@ -42,13 +42,11 @@ import { ThemeToggleButton } from '../../components/ThemeToggleButton';
 interface SettingsScreenProps {
   onOpenDriverProfile: () => void;
   onOpenFirstLaunch?: () => void;
-  onOpenAuthModal?: () => void;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onOpenDriverProfile,
   onOpenFirstLaunch,
-  onOpenAuthModal,
 }) => {
   const {
     schemaVersion,
@@ -82,13 +80,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const isCloudConnected = Boolean(cloudUser || settings.cloud_user_id);
 
   const handleManualSync = async () => {
-    if (!isCloudConnected) {
-      if (onOpenAuthModal) {
-        onOpenAuthModal();
-      }
-      return;
-    }
-
     setIsManualSyncing(true);
     setSyncFeedback(null);
     try {
@@ -685,13 +676,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
             {/* Sub-actions */}
             <div className="pt-2 border-t border-slate-700/20 flex items-center justify-between text-xs">
-              <button
-                type="button"
-                onClick={onOpenAuthModal}
-                className="text-[#5CA4F8] hover:underline font-bold cursor-pointer"
-              >
-                {cloudUser ? 'Switch or Manage Account' : 'Sign in to Cloud Database'}
-              </button>
+              <div className="flex items-center gap-1.5 text-xs text-[#2CD48D] font-bold">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>{getTranslation('sync_synced', lang)}</span>
+              </div>
               <button
                 type="button"
                 onClick={handleDownloadSqliteDump}
@@ -877,31 +865,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </span>
               <span className="text-sm text-[#8E9BAE] flex items-center gap-1">
                 v1.0
-                <ChevronRight className="w-4 h-4" />
-              </span>
-            </button>
-
-            {/* 8. Driver Account & Cloud Sync */}
-            <button
-              type="button"
-              onClick={onOpenAuthModal}
-              className="w-full px-5 py-4 flex items-center justify-between text-left cursor-pointer hover:opacity-90"
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className={`text-sm font-bold ${
-                    isDark ? 'text-white' : 'text-[#0F172A]'
-                  }`}
-                >
-                  {getTranslation('auth_account_status', lang)}
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#5CA4F8]/15 text-[#5CA4F8] flex items-center gap-1">
-                  <Cloud className="w-3 h-3" />
-                  Cloud Ready
-                </span>
-              </div>
-              <span className="text-sm text-[#8E9BAE] flex items-center gap-1">
-                {getTranslation('auth_switch_account', lang)}
                 <ChevronRight className="w-4 h-4" />
               </span>
             </button>
@@ -1130,7 +1093,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 onClick={async () => {
                   setShowSignOutConfirm(false);
                   await deleteAccountAndSignOut();
-                  onOpenAuthModal?.();
                 }}
                 className="py-3 px-4 rounded-xl text-xs font-extrabold bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/30 transition-colors cursor-pointer"
               >

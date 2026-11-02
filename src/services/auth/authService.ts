@@ -55,7 +55,7 @@ export function normalizeEthiopianPhone(raw: string): string {
  */
 export function getDriverAuthEmail(phone: string): string {
   const normalized = normalizeEthiopianPhone(phone);
-  return `driver_${normalized}@tripbirr.et`;
+  return `driver_${normalized}@tripbirr.com`;
 }
 
 /**
@@ -72,6 +72,7 @@ export function formatCloudAuthPassword(pinOrPassword: string): string {
 /**
  * Register a new driver in the cloud database.
  * Requires active internet connection so profile info is automatically created in database.
+ * No email address required: Drivers register with Name, Phone, and PIN.
  * Default vehicle, plate, target, and route are attached if not provided.
  */
 export async function signUpDriver(params: SignUpParams): Promise<AuthResult> {
@@ -87,7 +88,6 @@ export async function signUpDriver(params: SignUpParams): Promise<AuthResult> {
   }
 
   const cleanPhone = normalizeEthiopianPhone(params.phone);
-  const authEmail = params.email?.trim() || getDriverAuthEmail(cleanPhone);
   const secret = formatCloudAuthPassword(params.password || params.pin || '1234');
 
   const defaultVehicleType = params.vehicleType || 'MINIBUS_TAXI';
@@ -96,60 +96,73 @@ export async function signUpDriver(params: SignUpParams): Promise<AuthResult> {
   const defaultTarget = params.dailyTargetMinorUnits || 150000;
 
   try {
-    const { data, error } = await supabase.auth.signUp({
-      email: authEmail,
-      password: secret,
-      options: {
-        data: {
-          full_name: params.fullName.trim(),
-          phone: cleanPhone,
-          vehicle_type: defaultVehicleType,
-          vehicle_plate: defaultPlate,
-          primary_corridor: defaultRoute,
-          daily_target_minor_units: defaultTarget,
-        },
-      },
+    // 1. Direct registration via secure database RPC (No email address needed, no confirmation rate-limits)
+    const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('register_driver_account', {
+      p_phone: cleanPhone,
+      p_full_name: params.fullName.trim(),
+      p_secret: secret,
+      p_vehicle_type: defaultVehicleType,
+      p_vehicle_plate: defaultPlate,
+      p_primary_corridor: defaultRoute,
+      p_daily_target: defaultTarget,
     });
 
-    if (error) {
-      return { success: false, error: error.message };
-    }
-
-    const user = data.user;
-    let session = data.session;
-
-    // If session wasn't returned directly on signup (e.g. email confirmation setting),
-    // immediately sign in the newly registered user to get session and render app
-    if (!session && user) {
-      const signInRes = await supabase.auth.signInWithPassword({
+    if (rpcError) {
+      // If RPC failed, attempt direct signup as fallback
+      const authEmail = params.email?.trim() || getDriverAuthEmail(cleanPhone);
+      const { data: directData, error: directError } = await supabase.auth.signUp({
         email: authEmail,
         password: secret,
+        options: {
+          data: {
+            full_name: params.fullName.trim(),
+            phone: cleanPhone,
+            vehicle_type: defaultVehicleType,
+            vehicle_plate: defaultPlate,
+            primary_corridor: defaultRoute,
+            daily_target_minor_units: defaultTarget,
+          },
+        },
       });
-      if (signInRes.data.session) {
-        session = signInRes.data.session;
+
+      if (directError) {
+        return { success: false, error: directError.message };
       }
+
+      let session = directData.session;
+      let user = directData.user;
+      if (!session && user) {
+        const signInRes = await supabase.auth.signInWithPassword({
+          email: authEmail,
+          password: secret,
+        });
+        if (signInRes.data.session) {
+          session = signInRes.data.session;
+          user = signInRes.data.user;
+        }
+      }
+
+      return { success: true, user, session, needsEmailConfirmation: false };
     }
 
-    // Ensure database profile row exists
-    if (user) {
-      const firstName = params.fullName.trim().split(/\s+/)[0] || 'Driver';
-      await supabase.from('profiles').upsert({
-        id: user.id,
-        full_name: params.fullName.trim(),
-        sms_greeting_name: firstName,
-        phone: cleanPhone,
-        vehicle_type: defaultVehicleType,
-        vehicle_plate: defaultPlate,
-        primary_corridor: defaultRoute,
-        daily_target_minor_units: defaultTarget,
-        updated_at: new Date().toISOString(),
-      });
+    // 2. The account is created and auto-confirmed in Postgres. Sign in immediately to obtain active session!
+    const targetEmail = rpcData?.email || getDriverAuthEmail(cleanPhone);
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email: targetEmail,
+      password: secret,
+    });
+
+    if (signInError || !signInData.session) {
+      return {
+        success: false,
+        error: signInError?.message || 'Account created, but sign in failed. Please try signing in with your PIN.',
+      };
     }
 
     return {
       success: true,
-      user,
-      session,
+      user: signInData.user,
+      session: signInData.session,
       needsEmailConfirmation: false,
     };
   } catch (err: any) {
@@ -187,7 +200,22 @@ export async function signInDriver(
       }
     }
 
-    // 2. Try normalized phone number
+    // 2. Use secure database RPC lookup to find driver's auth email by Name or Phone
+    const { data: resolvedEmail } = await (supabase.rpc as any)('lookup_driver_auth_email', {
+      p_identifier: trimmedId,
+    });
+
+    if (resolvedEmail) {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: resolvedEmail,
+        password: secret,
+      });
+      if (!error && data.session) {
+        return { success: true, user: data.user, session: data.session };
+      }
+    }
+
+    // 3. Fallback: try normalized phone number directly
     const normalizedPhone = normalizeEthiopianPhone(trimmedId);
     const phoneEmail = getDriverAuthEmail(normalizedPhone);
 
@@ -198,29 +226,6 @@ export async function signInDriver(
 
     if (!phoneAuthError && phoneAuthData.session) {
       return { success: true, user: phoneAuthData.user, session: phoneAuthData.session };
-    }
-
-    // 3. Check database profiles by name or phone
-    const { data: matchedProfiles } = await supabase
-      .from('profiles')
-      .select('id, full_name, phone')
-      .or(`phone.eq.${normalizedPhone},full_name.ilike.%${trimmedId}%`)
-      .limit(1);
-
-    if (matchedProfiles && matchedProfiles.length > 0) {
-      const matched = matchedProfiles[0];
-      const matchedEmail = matched.phone
-        ? getDriverAuthEmail(matched.phone)
-        : `driver_${matched.id}@tripbirr.et`;
-
-      const { data: matchedAuthData, error: matchedAuthError } = await supabase.auth.signInWithPassword({
-        email: matchedEmail,
-        password: secret,
-      });
-
-      if (!matchedAuthError && matchedAuthData.session) {
-        return { success: true, user: matchedAuthData.user, session: matchedAuthData.session };
-      }
     }
 
     return {

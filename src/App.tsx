@@ -28,7 +28,6 @@ import { SettingsScreen } from './screens/Settings/SettingsScreen';
 import { TripActionModal } from './components/TripActionModal';
 import { ManualCashModal } from './components/ManualCashModal';
 import { DriverProfileModal } from './components/DriverProfileModal';
-import { FirstLaunchModal } from './components/FirstLaunchModal';
 import { AuthModal } from './components/AuthModal';
 import { SectionSkeleton } from './components/SectionSkeleton';
 import { PullToRefresh } from './components/PullToRefresh';
@@ -71,8 +70,6 @@ export default function App() {
   );
   const [isCashModalOpen, setIsCashModalOpen] = useState(false);
   const [isDriverProfileOpen, setIsDriverProfileOpen] = useState(false);
-  const [isFirstLaunchOpen, setIsFirstLaunchOpen] = useState(!settings.first_launch_completed);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   const activeTrip = trips.find((t) => t.status === TripStatus.ACTIVE) || null;
   const selectedTrip = selectedTripId
@@ -154,28 +151,18 @@ export default function App() {
         setIsDriverProfileOpen(false);
         return true;
       }
-      // 4. Dismiss first launch modal
-      if (isFirstLaunchOpen) {
-        setIsFirstLaunchOpen(false);
-        return true;
-      }
-      // 5. Dismiss AuthModal (only if user is already logged in)
-      if (isAuthModalOpen && isLoggedIn) {
-        setIsAuthModalOpen(false);
-        return true;
-      }
-      // 6. Close active/selected trip bottom sheet
+      // 4. Close active/selected trip bottom sheet
       if (selectedTripId) {
         setSelectedTripId(null);
         return true;
       }
-      // 7. If not on Home tab, navigate back to Home
+      // 5. If not on Home tab, navigate back to Home
       if (activeTab !== 'home') {
         setSelectedTripId(null);
         setActiveTab('home');
         return true;
       }
-      // 8. Otherwise, unhandled (native Android double-tap toast logic kicks in)
+      // 6. Otherwise, unhandled (native Android double-tap toast logic kicks in)
       return false;
     };
 
@@ -186,9 +173,6 @@ export default function App() {
     isCashModalOpen,
     tripModalMode,
     isDriverProfileOpen,
-    isFirstLaunchOpen,
-    isAuthModalOpen,
-    isLoggedIn,
     selectedTripId,
     activeTab,
   ]);
@@ -419,8 +403,6 @@ export default function App() {
                 {activeTab === 'settings' && (
                   <SettingsScreen
                     onOpenDriverProfile={() => setIsDriverProfileOpen(true)}
-                    onOpenFirstLaunch={() => setIsFirstLaunchOpen(true)}
-                    onOpenAuthModal={() => setIsAuthModalOpen(true)}
                   />
                 )}
               </div>
@@ -512,25 +494,12 @@ export default function App() {
         isOpen={isDriverProfileOpen}
         onClose={() => setIsDriverProfileOpen(false)}
       />
-      <FirstLaunchModal
-        isOpen={isFirstLaunchOpen}
-        onClose={() => setIsFirstLaunchOpen(false)}
-        onAccept={() => setIsFirstLaunchOpen(false)}
-      />
-      {/* Full-Screen Gated Auth for Logged-Out Drivers */}
+      {/* Single Authentication & First-Time Entry Screen (Matches Sign in@2x.png & Create account@2x.png) */}
       {(!isLoggedIn || settings.is_logged_in === false) && (
         <AuthModal
           isOpen={true}
           isFullScreen={true}
-          initialMode="SIGN_IN"
-        />
-      )}
-
-      {/* Dismissable Auth Modal for Logged-In Drivers */}
-      {isLoggedIn && settings.is_logged_in !== false && isAuthModalOpen && (
-        <AuthModal
-          isOpen={true}
-          onClose={() => setIsAuthModalOpen(false)}
+          initialMode={settings.first_launch_completed ? 'SIGN_IN' : 'CREATE_ACCOUNT'}
         />
       )}
     </div>

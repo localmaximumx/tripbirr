@@ -49,7 +49,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Sign in form state (Matching Sign in@2x.png)
-  const [loginName, setLoginName] = useState(driverProfile.full_name || 'Abebe Kebede');
+  const [loginName, setLoginName] = useState(driverProfile.full_name || '');
   const [loginPin, setLoginPin] = useState('');
   const pinInputRef = useRef<HTMLInputElement>(null);
 
@@ -95,6 +95,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       const cloudRes = await signInWithCloud(nameOrPhone, pin);
       if (cloudRes.success) {
         setSuccessMessage(lang === 'am' ? 'በተሳካ ሁኔታ ገብተዋል!' : 'Signed in successfully!');
+        // Request runtime permissions on first entry
+        try {
+          (window as any).TripBirrNative?.requestPermissions?.();
+        } catch {}
+        try {
+          (window as any).ReactNativeWebView?.postMessage(JSON.stringify({ type: 'REQUEST_PERMISSIONS' }));
+        } catch {}
+
         setTimeout(() => {
           onClose?.();
         }, 600);
@@ -105,6 +113,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       const localRes = signIn(nameOrPhone, pin);
       if (localRes.success) {
         setSuccessMessage(lang === 'am' ? 'በተሳካ ሁኔታ ገብተዋል!' : 'Signed in successfully!');
+        try {
+          (window as any).TripBirrNative?.requestPermissions?.();
+        } catch {}
+        try {
+          (window as any).ReactNativeWebView?.postMessage(JSON.stringify({ type: 'REQUEST_PERMISSIONS' }));
+        } catch {}
+
         setTimeout(() => {
           onClose?.();
         }, 600);
@@ -178,6 +193,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             ? 'መለያዎ ተፈጥሯል! በቀጥታ ወደ ስራ እየገቡ ነው...'
             : 'Account created! Starting your first trip...'
         );
+        try {
+          (window as any).TripBirrNative?.requestPermissions?.();
+        } catch {}
+        try {
+          (window as any).ReactNativeWebView?.postMessage(JSON.stringify({ type: 'REQUEST_PERMISSIONS' }));
+        } catch {}
+
         setTimeout(() => {
           onClose?.();
         }, 800);
