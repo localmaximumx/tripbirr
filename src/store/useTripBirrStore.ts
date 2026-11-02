@@ -504,6 +504,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       const updatedProfile: DriverProfileRecord = {
         ...current.driverProfile,
         id: user.id,
+        username: params.username?.trim().toLowerCase() || current.driverProfile.username,
         full_name: params.fullName.trim(),
         sms_greeting_name: firstName,
         telebirr_phone: params.phone?.trim() || current.driverProfile.telebirr_phone,
@@ -527,6 +528,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
 
       const singleAccount: DriverAccountRecord = {
         id: `acc_cloud_${user.id.slice(0, 8)}`,
+        username: params.username?.trim().toLowerCase() || undefined,
         phone: params.phone?.trim() || user.email || 'Cloud Driver',
         full_name: params.fullName.trim(),
         sms_greeting_name: firstName,
@@ -588,6 +590,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
 
       const singleAccount: DriverAccountRecord = {
         id: `acc_cloud_${user.id.slice(0, 8)}`,
+        username: meta.username || undefined,
         phone: meta.phone || user.email || identifier,
         full_name: meta.full_name || identifier,
         sms_greeting_name: firstName,

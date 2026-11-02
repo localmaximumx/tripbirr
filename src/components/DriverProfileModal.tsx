@@ -167,6 +167,7 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({
             <div>
               <h2 className="text-lg font-extrabold">{getTranslation('edit_profile_title', lang)}</h2>
               <p className="text-xs text-[#8E9BAE]">
+                {driverProfile.username ? `@${driverProfile.username} · ` : ''}
                 {getTranslation('edit_profile_desc', lang)}
               </p>
             </div>
@@ -198,6 +199,24 @@ export const DriverProfileModal: React.FC<DriverProfileModalProps> = ({
         {/* Direct Edit Form */}
         <form onSubmit={handleSave} className="space-y-3.5 text-xs">
           <div className="grid grid-cols-1 gap-3">
+            {driverProfile.username && (
+              <div>
+                <label className="block font-bold mb-1 text-[#8E9BAE]">
+                  {lang === 'am' ? 'የተጠቃሚ ስም (ልዩ መለያ)' : 'Username (Unique handle)'}
+                </label>
+                <div
+                  className={`w-full h-11 px-3.5 rounded-xl border text-sm font-mono font-bold flex items-center gap-1.5 ${
+                    isDark
+                      ? 'bg-[#0B0F1A]/60 border-white/10 text-[#2CD48D]'
+                      : 'bg-[#F7F9FC] border-slate-200 text-[#159960]'
+                  }`}
+                >
+                  <span>@</span>
+                  <span>{driverProfile.username}</span>
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block font-bold mb-1 text-[#8E9BAE]">
                 {lang === 'am' ? 'የአሽከርካሪ ሙሉ ስም' : 'Driver Name (Shown in Home Greeting & Profile)'}

@@ -474,7 +474,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             </div>
 
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2
                   className={`text-xl font-extrabold truncate ${
                     isDark ? 'text-white' : 'text-[#0F172A]'
@@ -482,6 +482,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 >
                   {driverProfile.full_name}
                 </h2>
+                {driverProfile.username && (
+                  <span className="text-xs font-mono font-bold text-[#2CD48D]">
+                    @{driverProfile.username}
+                  </span>
+                )}
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#5CA4F8]/15 text-[#5CA4F8] flex items-center gap-1 shrink-0">
                   <Cloud className="w-3 h-3" />
                   Cloud Ready
@@ -661,7 +666,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               <div className={`p-2.5 rounded-xl ${isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'}`}>
                 <p className="text-[11px] text-[#8E9BAE]">Account</p>
                 <p className={`font-bold truncate mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  {cloudUser?.email || settings.cloud_user_email || driverProfile.full_name}
+                  {driverProfile.username ? `@${driverProfile.username}` : driverProfile.full_name}
                 </p>
               </div>
               <div className={`p-2.5 rounded-xl ${isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'}`}>
@@ -910,6 +915,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   {driverProfile.full_name}
                 </p>
               </div>
+
+              {driverProfile.username ? (
+                <div className={`p-3 rounded-2xl ${isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'}`}>
+                  <p className="text-[#8E9BAE]">{lang === 'am' ? 'የተጠቃሚ ስም' : 'Username'}</p>
+                  <p className="font-bold font-mono mt-0.5 text-[#2CD48D]">
+                    @{driverProfile.username}
+                  </p>
+                </div>
+              ) : null}
 
               <div className={`p-3 rounded-2xl ${isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'}`}>
                 <p className="text-[#8E9BAE]">{lang === 'am' ? 'የቴሌብር ስልክ' : 'Telebirr Phone'}</p>

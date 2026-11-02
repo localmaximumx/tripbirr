@@ -66,13 +66,13 @@ export async function syncPush(
   const syncedTransactionIds: string[] = [];
   const syncedClassificationIds: string[] = [];
 
-  // 1. Sync Driver Profile
+  // 1. Sync Driver Profile (Only if local profile has valid name and is not guest)
   try {
     const profile = localState.driverProfile;
-    if (profile) {
-      const { error: profileError } = await supabase.from('profiles').upsert({
+    if (profile && profile.full_name && profile.full_name.trim().length > 0 && profile.id !== 'driver_guest') {
+      const profilePayload: any = {
         id: userId,
-        full_name: profile.full_name,
+        full_name: profile.full_name.trim(),
         sms_greeting_name: profile.sms_greeting_name || null,
         phone: profile.telebirr_phone || null,
         account_type: profile.account_type || null,
@@ -83,7 +83,11 @@ export async function syncPush(
         daily_target_minor_units: profile.daily_target_minor_units || null,
         driver_license_number: profile.driver_license_number || null,
         updated_at: new Date().toISOString(),
-      });
+      };
+      if (profile.username && profile.username.trim().length > 0) {
+        profilePayload.username = profile.username.trim().toLowerCase();
+      }
+      const { error: profileError } = await supabase.from('profiles').upsert(profilePayload);
       if (profileError) {
         errors.push(`Profile sync error: ${profileError.message}`);
       }
@@ -297,6 +301,7 @@ export async function syncPull(
     } else if (cloudProfile) {
       nextState.driverProfile = {
         ...nextState.driverProfile,
+        username: cloudProfile.username || nextState.driverProfile.username,
         full_name: cloudProfile.full_name || nextState.driverProfile.full_name,
         sms_greeting_name: cloudProfile.sms_greeting_name || nextState.driverProfile.sms_greeting_name,
         telebirr_phone: cloudProfile.phone || nextState.driverProfile.telebirr_phone,

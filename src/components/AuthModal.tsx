@@ -49,12 +49,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Sign in form state (Matching Sign in@2x.png)
-  const [loginName, setLoginName] = useState(driverProfile.full_name || '');
+  const [loginIdentifier, setLoginIdentifier] = useState(driverProfile.username || driverProfile.full_name || '');
   const [loginPin, setLoginPin] = useState('');
   const pinInputRef = useRef<HTMLInputElement>(null);
 
   // Create account form state (Matching Create account@2x.png)
   const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
   const [phoneDigits, setPhoneDigits] = useState('');
   const [regPassword, setRegPassword] = useState('');
 
@@ -75,11 +76,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    const nameOrPhone = loginName.trim();
+    const identifier = loginIdentifier.trim();
     const pin = loginPin.trim();
 
-    if (!nameOrPhone) {
-      setErrorMessage(lang === 'am' ? 'እባክዎ ስም ወይም ስልክ ቁጥር ያስገቡ' : 'Please enter your name or phone number.');
+    if (!identifier) {
+      setErrorMessage(lang === 'am' ? 'እባክዎ የተጠቃሚ ስም ያስገቡ' : 'Please enter your username.');
       return;
     }
 
@@ -91,8 +92,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      // 1. Try cloud database sign in
-      const cloudRes = await signInWithCloud(nameOrPhone, pin);
+      // 1. Try cloud database sign in (supports username, phone, or name)
+      const cloudRes = await signInWithCloud(identifier, pin);
       if (cloudRes.success) {
         setSuccessMessage(lang === 'am' ? 'በተሳካ ሁኔታ ገብተዋል!' : 'Signed in successfully!');
         // Request runtime permissions on first entry
@@ -110,7 +111,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }
 
       // 2. Fallback to local offline check (e.g. if offline or demo Abebe Kebede)
-      const localRes = signIn(nameOrPhone, pin);
+      const localRes = signIn(identifier, pin);
       if (localRes.success) {
         setSuccessMessage(lang === 'am' ? 'በተሳካ ሁኔታ ገብተዋል!' : 'Signed in successfully!');
         try {
@@ -129,8 +130,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setErrorMessage(
         cloudRes.error ||
           (lang === 'am'
-            ? 'የተሳሳተ ስም ወይም ሚስጥር ቁጥር። እባክዎ ያረጋግጡ።'
-            : 'Incorrect Name or PIN. Please check your credentials.')
+            ? 'የተሳሳተ የተጠቃሚ ስም ወይም ሚስጥር ቁጥር። እባክዎ ያረጋግጡ።'
+            : 'Incorrect Username or PIN. Please check your credentials.')
       );
     } catch (err: any) {
       setErrorMessage(err?.message || 'Error signing in.');
@@ -160,6 +161,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
+    const cleanUsername = username.trim().toLowerCase();
+    if (!cleanUsername) {
+      setErrorMessage(lang === 'am' ? 'እባክዎ ልዩ የተጠቃሚ ስም (Username) ያስገቡ' : 'Please enter a unique username.');
+      return;
+    }
+
+    if (cleanUsername.length < 3) {
+      setErrorMessage(lang === 'am' ? 'የተጠቃሚ ስም ቢያንስ 3 ፊደላት መሆን አለበት' : 'Username must be at least 3 characters.');
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_.]+$/.test(cleanUsername)) {
+      setErrorMessage(
+        lang === 'am'
+          ? 'የተጠቃሚ ስም የእንግሊዝኛ ፊደላት፣ ቁጥሮች፣ ነጥብ ወይም _ ብቻ መያዝ አለበት'
+          : 'Username can only contain letters, numbers, underscores, and dots.'
+      );
+      return;
+    }
+
     const cleanPhone = phoneDigits.replace(/\D/g, '');
     if (!cleanPhone || cleanPhone.length < 8) {
       setErrorMessage(lang === 'am' ? 'እባክዎ ትክክለኛ የቴሌብር ስልክ ቁጥር ያስገቡ' : 'Please enter a valid Telebirr phone number.');
@@ -176,6 +197,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     try {
       // Create user account in cloud database with sensible default vehicle details
       const cloudRes = await signUpWithCloud({
+        username: cleanUsername,
         fullName: fullName.trim(),
         phone: cleanPhone.startsWith('251') ? cleanPhone : cleanPhone.startsWith('0') ? `251${cleanPhone.slice(1)}` : `251${cleanPhone}`,
         password: regPassword.trim(),
@@ -309,18 +331,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             {/* Sign In Form */}
             <form onSubmit={handleSignInSubmit} className="space-y-6 flex-1 flex flex-col justify-between">
               <div className="space-y-6">
-                {/* Field 1: Name */}
+                {/* Field 1: Username */}
                 <div>
                   <label className="text-xs font-bold text-slate-300 block mb-2">
-                    {lang === 'am' ? 'ስም ወይም ስልክ' : 'Name'}
+                    {lang === 'am' ? 'የተጠቃሚ ስም (Username)' : 'Username'}
                   </label>
                   <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-[#101726] border border-[#1E293B] focus-within:border-[#2CD48D] transition-colors">
                     <User className="w-5 h-5 text-slate-400 shrink-0" />
                     <input
                       type="text"
-                      value={loginName}
-                      onChange={(e) => setLoginName(e.target.value)}
-                      placeholder="Abebe Kebede"
+                      value={loginIdentifier}
+                      onChange={(e) => setLoginIdentifier(e.target.value)}
+                      placeholder="e.g. biniyam"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                       className="bg-transparent text-sm text-white placeholder-slate-500 w-full outline-hidden font-medium"
                       required
                     />
@@ -462,8 +487,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </h1>
             <p className="text-sm text-slate-400 mt-1 mb-6 font-normal">
               {lang === 'am'
-                ? 'ሶስት መረጃዎችን ብቻ በማስገባት የመጀመሪያ ጉዞዎን ይጀምሩ።'
-                : "Three details and you're ready to start your first trip."}
+                ? 'መረጃዎችን በማስገባት የመጀመሪያ ጉዞዎን ይጀምሩ።'
+                : "Fill in your details to start your first trip."}
             </p>
 
             {/* Alerts */}
@@ -500,7 +525,33 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </div>
                 </div>
 
-                {/* Field 2: Telebirr phone number with +251 prefix */}
+                {/* Field 2: Unique Username */}
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-2">
+                    {lang === 'am' ? 'የተጠቃሚ ስም (ልዩ መለያ)' : 'Username (Unique)'}
+                  </label>
+                  <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-[#101726] border border-[#1E293B] focus-within:border-[#2CD48D] transition-colors">
+                    <span className="text-sm font-bold text-[#2CD48D] select-none pl-0.5">@</span>
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, ''))}
+                      placeholder="biniyam"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      className="bg-transparent text-sm text-white placeholder-slate-500 w-full outline-hidden font-medium"
+                      required
+                    />
+                  </div>
+                  <p className="text-[11.5px] text-slate-400 mt-1.5">
+                    {lang === 'am'
+                      ? 'ለመግባት የሚያገለግል ልዩ የተጠቃሚ ስም (ለምሳሌ፦ biniyam)'
+                      : 'Unique handle used to sign in to your account (e.g. biniyam)'}
+                  </p>
+                </div>
+
+                {/* Field 3: Telebirr phone number with +251 prefix */}
                 <div>
                   <label className="text-xs font-bold text-slate-300 block mb-2">
                     {lang === 'am' ? 'የቴሌብር ስልክ ቁጥር' : 'Telebirr phone number'}
@@ -525,7 +576,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </p>
                 </div>
 
-                {/* Field 3: Password / PIN with 4-segment strength indicator */}
+                {/* Field 4: Password / PIN with 4-segment strength indicator */}
                 <div>
                   <label className="text-xs font-bold text-slate-300 block mb-2">
                     {lang === 'am' ? 'የይለፍ ቃል / ሚስጥር ቁጥር' : 'Password'}

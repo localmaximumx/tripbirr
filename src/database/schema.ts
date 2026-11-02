@@ -26,6 +26,7 @@ export enum TransactionStatus {
 export interface DriverAccountRecord {
   id: string;
   phone: string; // Login key e.g. "0911234567" or "+251911234567"
+  username?: string;
   full_name: string;
   sms_greeting_name: string;
   pin: string; // 4-6 digit local security PIN or password
@@ -40,6 +41,7 @@ export interface DriverAccountRecord {
 
 export interface DriverProfileRecord {
   id: string;
+  username?: string;
   full_name: string;
   sms_greeting_name: string; // Matches "Dear <Name>" in Telebirr 127 SMS
   telebirr_phone: string;

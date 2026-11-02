@@ -67,6 +67,7 @@ export type Database = {
           sms_greeting_name: string | null
           sub_city: string | null
           updated_at: string
+          username: string | null
           vehicle_plate: string | null
           vehicle_type: string | null
         }
@@ -82,6 +83,7 @@ export type Database = {
           sms_greeting_name?: string | null
           sub_city?: string | null
           updated_at?: string
+          username?: string | null
           vehicle_plate?: string | null
           vehicle_type?: string | null
         }
@@ -97,6 +99,7 @@ export type Database = {
           sms_greeting_name?: string | null
           sub_city?: string | null
           updated_at?: string
+          username?: string | null
           vehicle_plate?: string | null
           vehicle_type?: string | null
         }

@@ -7,6 +7,7 @@ export interface SignUpParams {
   password?: string;
   pin?: string;
   fullName: string;
+  username?: string;
   phone: string;
   vehicleType?: DriverProfileRecord['vehicle_type'];
   vehiclePlate?: string;
@@ -97,6 +98,7 @@ export async function signUpDriver(params: SignUpParams): Promise<AuthResult> {
 
   try {
     // 1. Direct registration via secure database RPC (No email address needed, no confirmation rate-limits)
+    const cleanUsername = params.username ? params.username.trim().toLowerCase().replace(/[^a-zA-Z0-9_.]/g, '') : null;
     const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('register_driver_account', {
       p_phone: cleanPhone,
       p_full_name: params.fullName.trim(),
@@ -105,17 +107,23 @@ export async function signUpDriver(params: SignUpParams): Promise<AuthResult> {
       p_vehicle_plate: defaultPlate,
       p_primary_corridor: defaultRoute,
       p_daily_target: defaultTarget,
+      p_username: cleanUsername,
     });
+
+    if (rpcData && rpcData.success === false) {
+      return { success: false, error: rpcData.error || 'Failed to create account.' };
+    }
 
     if (rpcError) {
       // If RPC failed, attempt direct signup as fallback
-      const authEmail = params.email?.trim() || getDriverAuthEmail(cleanPhone);
+      const authEmail = params.email?.trim() || (cleanUsername ? `driver_${cleanUsername}@tripbirr.com` : getDriverAuthEmail(cleanPhone));
       const { data: directData, error: directError } = await supabase.auth.signUp({
         email: authEmail,
         password: secret,
         options: {
           data: {
             full_name: params.fullName.trim(),
+            username: cleanUsername,
             phone: cleanPhone,
             vehicle_type: defaultVehicleType,
             vehicle_plate: defaultPlate,
@@ -146,7 +154,7 @@ export async function signUpDriver(params: SignUpParams): Promise<AuthResult> {
     }
 
     // 2. The account is created and auto-confirmed in Postgres. Sign in immediately to obtain active session!
-    const targetEmail = rpcData?.email || getDriverAuthEmail(cleanPhone);
+    const targetEmail = rpcData?.email || (cleanUsername ? `driver_${cleanUsername}@tripbirr.com` : getDriverAuthEmail(cleanPhone));
     const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
       email: targetEmail,
       password: secret,
@@ -172,7 +180,7 @@ export async function signUpDriver(params: SignUpParams): Promise<AuthResult> {
 
 /**
  * Sign in an existing driver.
- * Checks the database for matching driver credentials (Name, Phone, or Email with PIN).
+ * Checks the database for matching driver credentials (Username, Phone, Name, or Email with PIN).
  */
 export async function signInDriver(
   identifier: string,
@@ -200,7 +208,20 @@ export async function signInDriver(
       }
     }
 
-    // 2. Use secure database RPC lookup to find driver's auth email by Name or Phone
+    // 2. Direct attempt using username format: driver_<username>@tripbirr.com
+    const cleanUsername = trimmedId.toLowerCase().replace(/[^a-zA-Z0-9_.]/g, '');
+    if (cleanUsername.length >= 3 && !/^\d+$/.test(cleanUsername)) {
+      const usernameEmail = `driver_${cleanUsername}@tripbirr.com`;
+      const { data: uData, error: uError } = await supabase.auth.signInWithPassword({
+        email: usernameEmail,
+        password: secret,
+      });
+      if (!uError && uData.session) {
+        return { success: true, user: uData.user, session: uData.session };
+      }
+    }
+
+    // 3. Use secure database RPC lookup to find driver's auth email by Username, Phone, or Name
     const { data: resolvedEmail } = await (supabase.rpc as any)('lookup_driver_auth_email', {
       p_identifier: trimmedId,
     });
@@ -215,7 +236,7 @@ export async function signInDriver(
       }
     }
 
-    // 3. Fallback: try normalized phone number directly
+    // 4. Fallback: try normalized phone number directly
     const normalizedPhone = normalizeEthiopianPhone(trimmedId);
     const phoneEmail = getDriverAuthEmail(normalizedPhone);
 
@@ -230,7 +251,7 @@ export async function signInDriver(
 
     return {
       success: false,
-      error: 'Incorrect Name or PIN. Please check your credentials or create an account.',
+      error: 'Incorrect Username or PIN. Please check your credentials or create an account.',
     };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Error signing in.' };
