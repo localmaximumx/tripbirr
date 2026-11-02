@@ -130,9 +130,13 @@ export const SmsSimulatorDrawer: React.FC<SmsSimulatorDrawerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-xs">
+    <div
+      className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+      onClick={onClose}
+    >
       <div
-        className={`w-full max-w-xl h-full overflow-y-auto p-6 border-l flex flex-col justify-between ${
+        onClick={(e) => e.stopPropagation()}
+        className={`w-full max-w-[440px] sm:max-w-xl h-full overflow-y-auto p-5 sm:p-6 border-l flex flex-col justify-between shadow-2xl animate-in slide-in-from-right duration-250 ${
           isDark
             ? 'bg-[#141B2D] border-white/10 text-white'
             : 'bg-white border-slate-200 text-[#0F172A]'

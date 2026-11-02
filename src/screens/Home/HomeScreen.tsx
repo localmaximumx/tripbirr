@@ -44,6 +44,7 @@ interface HomeScreenProps {
   onOpenTripDetail: (tripId: string) => void;
   onOpenTripModal: (mode: 'START' | 'END') => void;
   onOpenCashModal: (tripId?: string | null) => void;
+  onOpenSmsSimulator?: () => void;
 }
 
 function formatTime12Hour(time24: string): string {
@@ -68,6 +69,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenTripDetail,
   onOpenTripModal,
   onOpenCashModal,
+  onOpenSmsSimulator,
 }) => {
   const {
     driverProfile,
@@ -76,12 +78,28 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     settings,
     updateSettings,
     assignTransactionToTrip,
+    receiveIncomingSmsBroadcast,
   } = useTripBirrStore();
 
   const isDark = settings.theme === 'dark';
   const currency = settings.currency_display;
   const lang = (settings.language || 'en') as Language;
   const driverGreetingName = getDriverFirstName(driverProfile);
+
+  const [quickTestSuccess, setQuickTestSuccess] = useState(false);
+
+  const handleQuickTestSms = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const randSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const sampleSms = `Dear ${driverGreetingName}\n\nYou have received ETB 50.00 from Natnael Birhanu(2519****8747) on 01/11/2026 15:30:12. Your transaction number is DJL${randSuffix}. Your current E-Money Account balance is ETB 5,342.62.\n\nThank you for using telebirr\n\nEthio telecom`;
+    receiveIncomingSmsBroadcast({
+      senderId: '127',
+      body: sampleSms,
+      receivedAt: new Date().toISOString(),
+    });
+    setQuickTestSuccess(true);
+    setTimeout(() => setQuickTestSuccess(false), 2000);
+  };
 
   // Selected transaction for the slide-up Transaction Detail Bottom Sheet
   const [selectedTxId, setSelectedTxId] = useState<string | null>(null);
@@ -203,7 +221,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   return (
     <div className="space-y-4 pt-3">
-      {/* Top Greeting Header + Dark/Light Mode Toggle on the Same Horizontal Line */}
+      {/* Top Greeting Header + SMS Testbench Button + Dark/Light Mode Toggle */}
       <div
         style={{ animationDelay: '30ms' }}
         className="animate-card-enter flex items-center justify-between gap-3 pt-2 pb-1"
@@ -218,7 +236,26 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             {getTranslation('selam', (settings.language || 'en') as Language)}, {driverGreetingName}
           </h1>
         </div>
-        <ThemeToggleButton />
+        <div className="flex items-center gap-2 shrink-0">
+          {onOpenSmsSimulator && (
+            <button
+              type="button"
+              onClick={onOpenSmsSimulator}
+              className={`min-h-[38px] px-3.5 py-1.5 rounded-full border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-xs ${
+                isDark
+                  ? 'bg-[#141B2D] border-[#2CD48D]/40 text-[#2CD48D] hover:bg-[#1E2B45] hover:border-[#2CD48D]'
+                  : 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'
+              }`}
+              title={lang === 'am' ? 'የቴሌብር ኤስኤምኤስ ሲሙሌተር ክፈት' : 'Open SMS Testbench Simulator'}
+            >
+              <MessageSquarePlus className="w-4 h-4 shrink-0 text-[#2CD48D]" />
+              <span className="font-extrabold tracking-tight">
+                {lang === 'am' ? 'ሲሙሌተር' : 'Test SMS'}
+              </span>
+            </button>
+          )}
+          <ThemeToggleButton />
+        </div>
       </div>
 
       {/* Hero Royal Blue Today's Earnings Card — Clicking takes user to Reports section */}
@@ -456,6 +493,76 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </p>
         </button>
       </div>
+
+      {/* SMS Testbench Simulator Card */}
+      <section
+        onClick={onOpenSmsSimulator}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onOpenSmsSimulator?.();
+          }
+        }}
+        style={{ animationDelay: '250ms' }}
+        className={`animate-card-enter rounded-[24px] p-4.5 border-[1.5px] flex items-center justify-between gap-3.5 cursor-pointer transition-transform active:scale-[0.99] hover:brightness-105 ${
+          isDark
+            ? 'bg-[#101B2E] border-[#5CA4F8]/30 hover:border-[#5CA4F8]/70 shadow-lg'
+            : 'bg-[#F0F7FF] border-[#5CA4F8]/50 shadow-xs hover:border-[#5CA4F8]'
+        }`}
+        aria-label="Open SMS Testbench Simulator"
+      >
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="w-12 h-12 rounded-2xl bg-[#5CA4F8] text-[#09152B] flex items-center justify-center shrink-0 shadow-md">
+            <MessageSquarePlus className="w-6 h-6 stroke-[2.2]" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h3
+                className={`text-base font-extrabold tracking-tight truncate ${
+                  isDark ? 'text-white' : 'text-[#0F172A]'
+                }`}
+              >
+                {lang === 'am' ? 'የቴሌብር ኤስኤምኤስ ሲሙሌተር' : 'SMS Testbench Simulator'}
+              </h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#2CD48D]/20 text-[#2CD48D] shrink-0">
+                LIVE
+              </span>
+            </div>
+            <p className="text-xs text-[#8E9BAE] truncate mt-0.5">
+              {lang === 'am'
+                ? 'የተሳፋሪ ክፍያዎችን፣ ሪቨርሳል እና ድምፅን በቅጽበት ይሞክሩ'
+                : 'Simulate passenger payments, reversals & voice alerts'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={handleQuickTestSms}
+            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1 transition-all cursor-pointer active:scale-95 shadow-xs ${
+              quickTestSuccess
+                ? 'bg-[#2CD48D] text-[#052115]'
+                : isDark
+                ? 'bg-[#1E2B45] hover:bg-[#253655] text-[#5CA4F8]'
+                : 'bg-white hover:bg-slate-50 text-[#1B64DA] border border-[#5CA4F8]/30'
+            }`}
+            title="Fire instant ETB 50.00 payment"
+          >
+            {quickTestSuccess ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>{lang === 'am' ? 'ተልኳል!' : 'Sent!'}</span>
+              </>
+            ) : (
+              <span>{lang === 'am' ? 'በ1-ጠቅ ሞክር' : 'Quick +50'}</span>
+            )}
+          </button>
+          <ChevronRight className="w-5 h-5 text-[#8E9BAE]" />
+        </div>
+      </section>
 
       {/* Unassigned Payments Callout Card */}
       {unassignedTransactions.length > 0 && (

@@ -28,6 +28,7 @@ import { SettingsScreen } from './screens/Settings/SettingsScreen';
 import { TripActionModal } from './components/TripActionModal';
 import { ManualCashModal } from './components/ManualCashModal';
 import { DriverProfileModal } from './components/DriverProfileModal';
+import { SmsSimulatorDrawer } from './components/SmsSimulatorDrawer';
 import { AuthModal } from './components/AuthModal';
 import { SectionSkeleton } from './components/SectionSkeleton';
 import { PullToRefresh } from './components/PullToRefresh';
@@ -70,6 +71,7 @@ export default function App() {
   );
   const [isCashModalOpen, setIsCashModalOpen] = useState(false);
   const [isDriverProfileOpen, setIsDriverProfileOpen] = useState(false);
+  const [isSmsSimulatorOpen, setIsSmsSimulatorOpen] = useState(false);
 
   const activeTrip = trips.find((t) => t.status === TripStatus.ACTIVE) || null;
   const selectedTrip = selectedTripId
@@ -136,6 +138,11 @@ export default function App() {
   // Intercept Android hardware back button: Close modals, close sheets, or return to Home tab first
   useEffect(() => {
     (window as any).handleHardwareBackPress = () => {
+      // 0. Dismiss SMS simulator drawer
+      if (isSmsSimulatorOpen) {
+        setIsSmsSimulatorOpen(false);
+        return true;
+      }
       // 1. Dismiss cash payment modal
       if (isCashModalOpen) {
         setIsCashModalOpen(false);
@@ -384,6 +391,7 @@ export default function App() {
                     onOpenTripDetail={handleOpenTripDetail}
                     onOpenTripModal={(mode) => setTripModalMode(mode)}
                     onOpenCashModal={handleOpenCashModal}
+                    onOpenSmsSimulator={() => setIsSmsSimulatorOpen(true)}
                   />
                 )}
                 {activeTab === 'trips' && (
@@ -493,6 +501,11 @@ export default function App() {
       <DriverProfileModal
         isOpen={isDriverProfileOpen}
         onClose={() => setIsDriverProfileOpen(false)}
+      />
+
+      <SmsSimulatorDrawer
+        isOpen={isSmsSimulatorOpen}
+        onClose={() => setIsSmsSimulatorOpen(false)}
       />
       {/* Single Authentication & First-Time Entry Screen (Matches Sign in@2x.png & Create account@2x.png) */}
       {(!isLoggedIn || settings.is_logged_in === false) && (
