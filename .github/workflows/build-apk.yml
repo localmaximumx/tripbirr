@@ -7,6 +7,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-apk:
     name: Build TripBirr Standalone APK
@@ -62,3 +65,20 @@ jobs:
           path: react-native/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish GitHub Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0-latest
+          name: "TripBirr v1.0.0 (Latest Cloud & Offline APK)"
+          body: |
+            ### TripBirr Android APK Release
+            - Telebirr SMS 127 automatic detection & extraction.
+            - 100% offline-first local SQLite operation.
+            - Supabase cloud database & user account synchronization.
+            - Multi-device login and automatic data restoration.
+            - Driver earnings, trip tracking, and financial ledgers.
+          files: react-native/android/app/build/outputs/apk/debug/app-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
