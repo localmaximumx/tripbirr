@@ -99,9 +99,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     settings.privacy_hide_popup_amounts,
   ].filter(Boolean).length;
 
-  const handleExportCsvData = () => {
+  const [csvExportFeedback, setCsvExportFeedback] = useState(false);
+
+  const handleExportCsvData = async () => {
     const csv = generateTransactionsCsv(transactions, trips);
-    triggerCsvDownload(`tripbirr_export_${CURRENT_DEMO_ISO_DATE}.csv`, csv);
+    await triggerCsvDownload(`tripbirr_export_${CURRENT_DEMO_ISO_DATE}.csv`, csv);
+    setCsvExportFeedback(true);
+    setTimeout(() => setCsvExportFeedback(false), 3000);
   };
 
   const handleDownloadSqliteDump = () => {
@@ -114,13 +118,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       smsProcessingRecords,
       settings,
     });
-    const blob = new Blob([sqlDump], { type: 'application/sql;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'tripbirr_offline_database.sql';
-    a.click();
-    URL.revokeObjectURL(url);
+    triggerCsvDownload('tripbirr_offline_database.sql', sqlDump);
   };
 
   const handleClearSmsLogs = () => {
@@ -607,8 +605,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 {getTranslation('export_csv', lang)}
               </span>
               <span className="text-sm text-[#8E9BAE] flex items-center gap-1">
-                CSV
-                <ChevronRight className="w-4 h-4" />
+                {csvExportFeedback ? (
+                  <span className="text-xs font-bold text-[#2CD48D]">
+                    {lang === 'am' ? 'ተጠናቋል!' : 'Exported!'}
+                  </span>
+                ) : (
+                  <>
+                    CSV
+                    <ChevronRight className="w-4 h-4" />
+                  </>
+                )}
               </span>
             </button>
 

@@ -5,26 +5,33 @@ import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.BroadcastReceiver
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.location.Geocoder
 import android.location.Location
 import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
 import android.speech.tts.TextToSpeech
 import android.webkit.*
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.webkit.WebViewAssetLoader
 import com.tripbirr.sms.NativeSmsQueueDbHelper
 import com.tripbirr.sms.SmsReceiver
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.util.Locale
 
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
@@ -43,6 +50,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Set native window background and status/nav bars to #0B0F1A to eliminate grey startup flash
+        window.decorView.setBackgroundColor(Color.parseColor("#0B0F1A"))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            window.statusBarColor = Color.parseColor("#0B0F1A")
+            window.navigationBarColor = Color.parseColor("#0B0F1A")
+        }
+
         // 1. Initialize TextToSpeech engine
         try {
             tts = TextToSpeech(applicationContext, this)
@@ -57,6 +71,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             .build()
 
         webView = WebView(this).apply {
+            setBackgroundColor(Color.parseColor("#0B0F1A"))
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.databaseEnabled = true
@@ -230,6 +245,68 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             if (ttsReady && tts != null) {
                 val text = spokenText.ifEmpty { "Payment received $amountFormatted" }
                 tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tripbirr_tts")
+            }
+        }
+
+        @JavascriptInterface
+        fun exportCsv(filename: String, csvContent: String): Boolean {
+            return try {
+                val cleanFilename = if (filename.endsWith(".csv")) filename else "$filename.csv"
+                var fileUri: android.net.Uri? = null
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val contentValues = ContentValues().apply {
+                        put(MediaStore.MediaColumns.DISPLAY_NAME, cleanFilename)
+                        put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/TripBirr")
+                    }
+                    val resolver = applicationContext.contentResolver
+                    val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                    if (uri != null) {
+                        resolver.openOutputStream(uri)?.use { os ->
+                            os.write(csvContent.toByteArray(Charsets.UTF_8))
+                        }
+                        fileUri = uri
+                    }
+                } else {
+                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                    val dir = File(downloadsDir, "TripBirr")
+                    if (!dir.exists()) dir.mkdirs()
+                    val targetFile = File(dir, cleanFilename)
+                    targetFile.writeText(csvContent, Charsets.UTF_8)
+                    fileUri = FileProvider.getUriForFile(
+                        this@MainActivity,
+                        "${applicationContext.packageName}.fileprovider",
+                        targetFile
+                    )
+                }
+
+                runOnUiThread {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "CSV saved: $cleanFilename",
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    try {
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/csv"
+                            putExtra(Intent.EXTRA_SUBJECT, cleanFilename)
+                            putExtra(Intent.EXTRA_TEXT, "TripBirr Report: $cleanFilename")
+                            if (fileUri != null) {
+                                putExtra(Intent.EXTRA_STREAM, fileUri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                        }
+                        startActivity(Intent.createChooser(shareIntent, "Share or Open CSV Report"))
+                    } catch (_: Throwable) {}
+                }
+                true
+            } catch (e: Throwable) {
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, "CSV export failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+                false
             }
         }
 

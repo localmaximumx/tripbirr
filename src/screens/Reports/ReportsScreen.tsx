@@ -260,19 +260,27 @@ export const ReportsScreen: React.FC = () => {
     { id: 'CUSTOM', label: getTranslation('report_custom', lang) },
   ];
 
-  const handleExportTransactionsCsv = () => {
+  const [exportFeedback, setExportFeedback] = useState<string | null>(null);
+
+  const handleExportTransactionsCsv = async () => {
     const csv = generateTransactionsCsv(transactions, trips);
-    triggerCsvDownload(`tripbirr_payments_${CURRENT_DEMO_ISO_DATE}.csv`, csv);
+    await triggerCsvDownload(`tripbirr_payments_${CURRENT_DEMO_ISO_DATE}.csv`, csv);
+    setExportFeedback('payments');
+    setTimeout(() => setExportFeedback(null), 2500);
   };
 
-  const handleExportTripsCsv = () => {
+  const handleExportTripsCsv = async () => {
     const csv = generateTripsCsv(trips, transactions);
-    triggerCsvDownload(`tripbirr_trips_${CURRENT_DEMO_ISO_DATE}.csv`, csv);
+    await triggerCsvDownload(`tripbirr_trips_${CURRENT_DEMO_ISO_DATE}.csv`, csv);
+    setExportFeedback('trips');
+    setTimeout(() => setExportFeedback(null), 2500);
   };
 
-  const handleExportDailyCsv = () => {
+  const handleExportDailyCsv = async () => {
     const csv = generateDailySummaryCsv(report.dailySeries);
-    triggerCsvDownload(`tripbirr_daily_summary_${CURRENT_DEMO_ISO_DATE}.csv`, csv);
+    await triggerCsvDownload(`tripbirr_daily_summary_${CURRENT_DEMO_ISO_DATE}.csv`, csv);
+    setExportFeedback('daily');
+    setTimeout(() => setExportFeedback(null), 2500);
   };
 
   return (
@@ -619,7 +627,9 @@ export const ReportsScreen: React.FC = () => {
             }`}
           >
             <Download className="w-3.5 h-3.5 text-[#2CD48D]" />
-            {getTranslation('payments', lang)}
+            {exportFeedback === 'payments'
+              ? (lang === 'am' ? 'ተጠናቋል!' : 'Saved!')
+              : getTranslation('payments', lang)}
           </button>
           <button
             type="button"
@@ -631,7 +641,9 @@ export const ReportsScreen: React.FC = () => {
             }`}
           >
             <Download className="w-3.5 h-3.5 text-[#5CA4F8]" />
-            {getTranslation('trips_title', lang)}
+            {exportFeedback === 'trips'
+              ? (lang === 'am' ? 'ተጠናቋል!' : 'Saved!')
+              : getTranslation('trips_title', lang)}
           </button>
           <button
             type="button"
@@ -643,7 +655,9 @@ export const ReportsScreen: React.FC = () => {
             }`}
           >
             <Download className="w-3.5 h-3.5 text-[#F5BA36]" />
-            {lang === 'am' ? 'የቀን CSV' : 'Daily CSV'}
+            {exportFeedback === 'daily'
+              ? (lang === 'am' ? 'ተጠናቋል!' : 'Saved!')
+              : (lang === 'am' ? 'የቀን CSV' : 'Daily CSV')}
           </button>
         </div>
       </div>

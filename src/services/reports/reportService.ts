@@ -485,15 +485,66 @@ export function generateDailySummaryCsv(
   return [headers.map(escapeCsvCell).join(','), ...rows].join('\n');
 }
 
-export function triggerCsvDownload(filename: string, csvContent: string): void {
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.setAttribute('download', filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
+export async function triggerCsvDownload(filename: string, csvContent: string): Promise<boolean> {
+  const cleanFilename = filename.endsWith('.csv') ? filename : `${filename}.csv`;
 
+  // 1. First priority: Android Native Bridge (TripBirrNative.exportCsv)
+  try {
+    const nativeBridge = (window as any).TripBirrNative;
+    if (nativeBridge && typeof nativeBridge.exportCsv === 'function') {
+      const res = nativeBridge.exportCsv(cleanFilename, csvContent);
+      if (res) return true;
+    }
+  } catch (err) {
+    console.warn('Native exportCsv error, falling back:', err);
+  }
+
+  // 2. Second priority: Modern Web Share API (if supported with Files)
+  try {
+    if (typeof navigator !== 'undefined' && navigator.canShare && typeof File !== 'undefined') {
+      const file = new File([csvContent], cleanFilename, { type: 'text/csv' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: cleanFilename,
+          text: `TripBirr CSV Export: ${cleanFilename}`,
+        });
+        return true;
+      }
+    }
+  } catch (_e) {
+    // Sharing dialog dismissed or canceled by user, proceed to direct download
+  }
+
+  // 3. Third priority: HTML5 Blob download (with 30s delayed revoke so mobile browsers finish)
+  try {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', cleanFilename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 30000);
+    return true;
+  } catch (err) {
+    console.warn('Blob download failed, trying data URI fallback:', err);
+  }
+
+  // 4. Fourth priority: RFC 2397 Data URI fallback
+  try {
+    const encodedUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent);
+    const link = document.createElement('a');
+    link.href = encodedUri;
+    link.setAttribute('download', cleanFilename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return true;
+  } catch (_e) {
+    return false;
+  }
+}

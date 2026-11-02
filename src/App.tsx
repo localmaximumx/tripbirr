@@ -29,6 +29,7 @@ import { TripActionModal } from './components/TripActionModal';
 import { ManualCashModal } from './components/ManualCashModal';
 import { DriverProfileModal } from './components/DriverProfileModal';
 import { FirstLaunchModal } from './components/FirstLaunchModal';
+import { SectionSkeleton } from './components/SectionSkeleton';
 import { getTranslation, Language } from './utils/i18n';
 import {
   formatMinorUnits,
@@ -57,6 +58,7 @@ export default function App() {
   } = useTripBirrStore();
 
   const [activeTab, setActiveTab] = useState<NavSection>('home');
+  const [isSectionLoading, setIsSectionLoading] = useState(false);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [txFilterHint, setTxFilterHint] = useState<string | null>(null);
   const [tripModalMode, setTripModalMode] = useState<'START' | 'END' | null>(null);
@@ -136,8 +138,14 @@ export default function App() {
 
   const handleNavigate = (tab: NavSection, filterHint?: string) => {
     setSelectedTripId(null);
-    setActiveTab(tab);
     setTxFilterHint(filterHint || null);
+    if (tab !== activeTab) {
+      setIsSectionLoading(true);
+      setActiveTab(tab);
+      setTimeout(() => {
+        setIsSectionLoading(false);
+      }, 120);
+    }
   };
 
   const handleOpenTripDetail = (tripId: string) => {
@@ -313,33 +321,39 @@ export default function App() {
 
         {/* Main Mobile Scrollable Content */}
         <main className="flex-1 px-4 pt-7 pb-36">
-          {activeTab === 'home' && (
-            <HomeScreen
-              onNavigate={handleNavigate}
-              onOpenTripDetail={handleOpenTripDetail}
-              onOpenTripModal={(mode) => setTripModalMode(mode)}
-              onOpenCashModal={handleOpenCashModal}
-            />
-          )}
-          {activeTab === 'trips' && (
-            <TripsScreen
-              onOpenTripDetail={handleOpenTripDetail}
-              onOpenTripModal={(mode) => setTripModalMode(mode)}
-              onOpenCashModal={handleOpenCashModal}
-            />
-          )}
-          {activeTab === 'transactions' && (
-            <TransactionsScreen
-              onOpenCashModal={() => handleOpenCashModal(null)}
-              initialFilterHint={txFilterHint}
-            />
-          )}
-          {activeTab === 'reports' && <ReportsScreen />}
-          {activeTab === 'settings' && (
-            <SettingsScreen
-              onOpenDriverProfile={() => setIsDriverProfileOpen(true)}
-              onOpenFirstLaunch={() => setIsFirstLaunchOpen(true)}
-            />
+          {isSectionLoading ? (
+            <SectionSkeleton section={activeTab} />
+          ) : (
+            <div key={activeTab} className="animate-page-enter">
+              {activeTab === 'home' && (
+                <HomeScreen
+                  onNavigate={handleNavigate}
+                  onOpenTripDetail={handleOpenTripDetail}
+                  onOpenTripModal={(mode) => setTripModalMode(mode)}
+                  onOpenCashModal={handleOpenCashModal}
+                />
+              )}
+              {activeTab === 'trips' && (
+                <TripsScreen
+                  onOpenTripDetail={handleOpenTripDetail}
+                  onOpenTripModal={(mode) => setTripModalMode(mode)}
+                  onOpenCashModal={handleOpenCashModal}
+                />
+              )}
+              {activeTab === 'transactions' && (
+                <TransactionsScreen
+                  onOpenCashModal={() => handleOpenCashModal(null)}
+                  initialFilterHint={txFilterHint}
+                />
+              )}
+              {activeTab === 'reports' && <ReportsScreen />}
+              {activeTab === 'settings' && (
+                <SettingsScreen
+                  onOpenDriverProfile={() => setIsDriverProfileOpen(true)}
+                  onOpenFirstLaunch={() => setIsFirstLaunchOpen(true)}
+                />
+              )}
+            </div>
           )}
         </main>
 
