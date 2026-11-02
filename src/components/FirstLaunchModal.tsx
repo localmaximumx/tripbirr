@@ -42,7 +42,6 @@ export const FirstLaunchModal: React.FC<FirstLaunchModalProps> = ({
     accounts,
     createAccount,
     signIn,
-    switchAccount,
   } = useTripBirrStore();
 
   const [step, setStep] = useState<'WELCOME' | 'SETUP'>('WELCOME');
@@ -83,6 +82,11 @@ export const FirstLaunchModal: React.FC<FirstLaunchModalProps> = ({
     // Trigger Android Native runtime permissions
     try {
       (window as any).TripBirrNative?.requestPermissions?.();
+    } catch {
+      // ignore
+    }
+    try {
+      (window as any).ReactNativeWebView?.postMessage(JSON.stringify({ type: 'REQUEST_PERMISSIONS' }));
     } catch {
       // ignore
     }

@@ -255,7 +255,7 @@ export const TRANSLATIONS = {
     sync_last_synced: 'Last Cloud Sync',
     sync_never: 'Not synced yet',
     sync_backup_restore: 'Cloud Backup & Data Recovery',
-    sync_backup_desc: 'Trips and Telebirr payments are safely stored in your isolated Supabase cloud account.',
+    sync_backup_desc: 'Trips and Telebirr payments are safely stored in your secure cloud account.',
     sync_login_restore_desc: 'Sign in with your email on any phone to retrieve your full trip and payment history.',
   },
 
@@ -508,7 +508,7 @@ export const TRANSLATIONS = {
     sync_last_synced: 'የመጨረሻ ማመሳሰል',
     sync_never: 'እስካሁን አልተመሳሰለም',
     sync_backup_restore: 'የክላውድ መጠባበቂያ እና መልሶ ማግኛ',
-    sync_backup_desc: 'ጉዞዎችዎ እና የቴሌብር ክፍያዎች በሱፓቤዝ (Supabase) ክላውድ ዳታቤዝ ላይ ተጠብቀው ይቀመጣሉ።',
+    sync_backup_desc: 'ጉዞዎችዎ እና የቴሌብር ክፍያዎች ደህንነቱ በተጠበቀ የክላውድ ዳታቤዝ ላይ ተጠብቀው ይቀመጣሉ።',
     sync_login_restore_desc: 'በሌላ ስልክ በኢሜይልዎ ሲገቡ ሙሉ የጉዞ እና የክፍያ ታሪክዎ በራስ-ሰር ይመለሳል።',
   },
 };

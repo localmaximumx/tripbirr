@@ -4,6 +4,7 @@ import {
   StatusBar,
   StyleSheet,
   BackHandler,
+  ToastAndroid,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import {
@@ -18,36 +19,33 @@ import {
 export default function TripBirrReactNativeApp() {
   const webViewRef = useRef<WebView>(null);
   const [canGoBack, setCanGoBack] = useState(false);
+  const lastBackPressTime = useRef<number>(0);
 
-  useEffect(() => {
-    // 1. Request SMS permission & drain any background SMS queued by SmsReceiver.kt
-    requestAndroidReceiveSmsPermission()
-      .then(async (granted) => {
-        if (granted) {
-          try {
-            const queued = await drainPendingNativeSmsQueue();
-            if (queued && queued.length > 0) {
-              const payload = JSON.stringify(queued);
-              webViewRef.current?.injectJavaScript(`
-                if (window.onNativeQueuedSmsDrained) {
-                  window.onNativeQueuedSmsDrained(${payload});
-                }
-                true;
-              `);
-              for (const item of queued) {
-                await acknowledgeNativeSms(item.fingerprint);
-              }
+  const requestPermissionsManually = async () => {
+    try {
+      const granted = await requestAndroidReceiveSmsPermission();
+      if (granted) {
+        const queued = await drainPendingNativeSmsQueue();
+        if (queued && queued.length > 0) {
+          const payload = JSON.stringify(queued);
+          webViewRef.current?.injectJavaScript(`
+            if (window.onNativeQueuedSmsDrained) {
+              window.onNativeQueuedSmsDrained(${payload});
             }
-          } catch (drainErr) {
-            console.warn('Error draining SMS queue:', drainErr);
+            true;
+          `);
+          for (const item of queued) {
+            await acknowledgeNativeSms(item.fingerprint);
           }
         }
-      })
-      .catch((err) => {
-        console.warn('SMS permission request error:', err);
-      });
+      }
+    } catch (err) {
+      console.warn('Manual permission request error:', err);
+    }
+  };
 
-    // 2. Real-time native Telebirr 127 SMS listener
+  useEffect(() => {
+    // 1. Real-time native Telebirr 127 SMS listener
     let unsubscribe = () => {};
     try {
       unsubscribe = subscribeToNativeTelebirrSms(async (event) => {
@@ -69,13 +67,16 @@ export default function TripBirrReactNativeApp() {
       console.warn('subscribeToNativeTelebirrSms error:', subErr);
     }
 
-    // 3. Android Hardware Back Button navigation
+    // 2. Android Hardware Back Button navigation
     const backAction = () => {
-      if (canGoBack && webViewRef.current) {
-        webViewRef.current.goBack();
-        return true;
-      }
-      return false;
+      webViewRef.current?.injectJavaScript(`
+        (function() {
+          var handled = (typeof window.handleHardwareBackPress === 'function') ? window.handleHardwareBackPress() : false;
+          window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'BACK_ACTION_RESULT', handled: Boolean(handled) }));
+        })();
+        true;
+      `);
+      return true; // prevent immediate exit
     };
     const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
 
@@ -83,13 +84,29 @@ export default function TripBirrReactNativeApp() {
       unsubscribe();
       backHandler.remove();
     };
-  }, [canGoBack]);
+  }, []);
 
   // Handle messages dispatched from Web Application -> React Native Native Bridge
   const handleMessage = async (event: any) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
-      if (data.type === 'CAPTURE_GPS') {
+      if (data.type === 'REQUEST_PERMISSIONS') {
+        await requestPermissionsManually();
+      } else if (data.type === 'BACK_ACTION_RESULT') {
+        if (!data.handled) {
+          if (canGoBack && webViewRef.current) {
+            webViewRef.current.goBack();
+          } else {
+            const now = Date.now();
+            if (now - lastBackPressTime.current < 2000) {
+              BackHandler.exitApp();
+            } else {
+              lastBackPressTime.current = now;
+              ToastAndroid.show('Press back again to exit', ToastAndroid.SHORT);
+            }
+          }
+        }
+      } else if (data.type === 'CAPTURE_GPS') {
         try {
           const fix = await getCurrentDeviceLocation();
           webViewRef.current?.injectJavaScript(`

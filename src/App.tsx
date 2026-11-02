@@ -31,6 +31,7 @@ import { DriverProfileModal } from './components/DriverProfileModal';
 import { FirstLaunchModal } from './components/FirstLaunchModal';
 import { AuthModal } from './components/AuthModal';
 import { SectionSkeleton } from './components/SectionSkeleton';
+import { PullToRefresh } from './components/PullToRefresh';
 import { getTranslation, Language } from './utils/i18n';
 import {
   formatMinorUnits,
@@ -46,6 +47,7 @@ export default function App() {
     trips,
     transactions,
     settings,
+    isLoggedIn,
     latestAlert,
     pendingAssociationPrompt,
     dailyTargetAlert,
@@ -56,6 +58,7 @@ export default function App() {
     dismissAlert,
     dismissDailyTargetAlert,
     confirmPendingTripAssociation,
+    triggerManualSync,
   } = useTripBirrStore();
 
   const [activeTab, setActiveTab] = useState<NavSection>('home');
@@ -132,6 +135,63 @@ export default function App() {
       window.removeEventListener('TripBirrSmsReceived', handleIncomingSms);
     };
   }, []);
+
+  // Intercept Android hardware back button: Close modals, close sheets, or return to Home tab first
+  useEffect(() => {
+    (window as any).handleHardwareBackPress = () => {
+      // 1. Dismiss cash payment modal
+      if (isCashModalOpen) {
+        setIsCashModalOpen(false);
+        return true;
+      }
+      // 2. Dismiss trip action modal
+      if (tripModalMode) {
+        setTripModalMode(null);
+        return true;
+      }
+      // 3. Dismiss driver profile modal
+      if (isDriverProfileOpen) {
+        setIsDriverProfileOpen(false);
+        return true;
+      }
+      // 4. Dismiss first launch modal
+      if (isFirstLaunchOpen) {
+        setIsFirstLaunchOpen(false);
+        return true;
+      }
+      // 5. Dismiss AuthModal (only if user is already logged in)
+      if (isAuthModalOpen && isLoggedIn) {
+        setIsAuthModalOpen(false);
+        return true;
+      }
+      // 6. Close active/selected trip bottom sheet
+      if (selectedTripId) {
+        setSelectedTripId(null);
+        return true;
+      }
+      // 7. If not on Home tab, navigate back to Home
+      if (activeTab !== 'home') {
+        setSelectedTripId(null);
+        setActiveTab('home');
+        return true;
+      }
+      // 8. Otherwise, unhandled (native Android double-tap toast logic kicks in)
+      return false;
+    };
+
+    return () => {
+      delete (window as any).handleHardwareBackPress;
+    };
+  }, [
+    isCashModalOpen,
+    tripModalMode,
+    isDriverProfileOpen,
+    isFirstLaunchOpen,
+    isAuthModalOpen,
+    isLoggedIn,
+    selectedTripId,
+    activeTab,
+  ]);
 
   const handleOpenCashModal = (tripId?: string | null) => {
     setCashModalTripId(tripId);
@@ -321,44 +381,52 @@ export default function App() {
           </div>
         )}
 
-        {/* Main Mobile Scrollable Content */}
-        <main className="flex-1 px-4 pt-7 pb-36">
-          {isSectionLoading ? (
-            <SectionSkeleton section={activeTab} />
-          ) : (
-            <div key={activeTab} className="animate-page-enter">
-              {activeTab === 'home' && (
-                <HomeScreen
-                  onNavigate={handleNavigate}
-                  onOpenTripDetail={handleOpenTripDetail}
-                  onOpenTripModal={(mode) => setTripModalMode(mode)}
-                  onOpenCashModal={handleOpenCashModal}
-                />
-              )}
-              {activeTab === 'trips' && (
-                <TripsScreen
-                  onOpenTripDetail={handleOpenTripDetail}
-                  onOpenTripModal={(mode) => setTripModalMode(mode)}
-                  onOpenCashModal={handleOpenCashModal}
-                />
-              )}
-              {activeTab === 'transactions' && (
-                <TransactionsScreen
-                  onOpenCashModal={() => handleOpenCashModal(null)}
-                  initialFilterHint={txFilterHint}
-                />
-              )}
-              {activeTab === 'reports' && <ReportsScreen />}
-              {activeTab === 'settings' && (
-                <SettingsScreen
-                  onOpenDriverProfile={() => setIsDriverProfileOpen(true)}
-                  onOpenFirstLaunch={() => setIsFirstLaunchOpen(true)}
-                  onOpenAuthModal={() => setIsAuthModalOpen(true)}
-                />
-              )}
-            </div>
-          )}
-        </main>
+        {/* Main Mobile Scrollable Content with Pull-to-Refresh Cloud Sync */}
+        <PullToRefresh
+          onRefresh={triggerManualSync}
+          pullText={lang === 'am' ? 'ለማመሳሰል ወደ ታች ይጎትቱ' : 'Pull down to sync'}
+          releaseText={lang === 'am' ? 'ወደ ክላውድ ለማመሳሰል ይልቀቁ' : 'Release to sync with cloud'}
+          refreshingText={lang === 'am' ? 'ዳታ ከክላውድ ጋር በመመሳሰል ላይ...' : 'Syncing data to cloud...'}
+          completedText={lang === 'am' ? 'ማመሳሰል ተጠናቋል!' : 'Sync complete!'}
+        >
+          <main className="flex-1 px-4 pt-7 pb-36">
+            {isSectionLoading ? (
+              <SectionSkeleton section={activeTab} />
+            ) : (
+              <div key={activeTab} className="animate-page-enter">
+                {activeTab === 'home' && (
+                  <HomeScreen
+                    onNavigate={handleNavigate}
+                    onOpenTripDetail={handleOpenTripDetail}
+                    onOpenTripModal={(mode) => setTripModalMode(mode)}
+                    onOpenCashModal={handleOpenCashModal}
+                  />
+                )}
+                {activeTab === 'trips' && (
+                  <TripsScreen
+                    onOpenTripDetail={handleOpenTripDetail}
+                    onOpenTripModal={(mode) => setTripModalMode(mode)}
+                    onOpenCashModal={handleOpenCashModal}
+                  />
+                )}
+                {activeTab === 'transactions' && (
+                  <TransactionsScreen
+                    onOpenCashModal={() => handleOpenCashModal(null)}
+                    initialFilterHint={txFilterHint}
+                  />
+                )}
+                {activeTab === 'reports' && <ReportsScreen />}
+                {activeTab === 'settings' && (
+                  <SettingsScreen
+                    onOpenDriverProfile={() => setIsDriverProfileOpen(true)}
+                    onOpenFirstLaunch={() => setIsFirstLaunchOpen(true)}
+                    onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                  />
+                )}
+              </div>
+            )}
+          </main>
+        </PullToRefresh>
 
         {/* Active / Selected Trip Slide-Up Bottom Sheet */}
         {selectedTrip && (
@@ -449,10 +517,22 @@ export default function App() {
         onClose={() => setIsFirstLaunchOpen(false)}
         onAccept={() => setIsFirstLaunchOpen(false)}
       />
-      <AuthModal
-        isOpen={isAuthModalOpen || settings.is_logged_in === false}
-        onClose={() => setIsAuthModalOpen(false)}
-      />
+      {/* Full-Screen Gated Auth for Logged-Out Drivers */}
+      {(!isLoggedIn || settings.is_logged_in === false) && (
+        <AuthModal
+          isOpen={true}
+          isFullScreen={true}
+          initialMode="SIGN_IN"
+        />
+      )}
+
+      {/* Dismissable Auth Modal for Logged-In Drivers */}
+      {isLoggedIn && settings.is_logged_in !== false && isAuthModalOpen && (
+        <AuthModal
+          isOpen={true}
+          onClose={() => setIsAuthModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

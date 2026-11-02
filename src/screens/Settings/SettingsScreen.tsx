@@ -65,6 +65,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     clearSmsAuditLogs,
     resetToSeedDatabase,
     signOut,
+    deleteAccountAndSignOut,
     cloudUser,
     syncState,
     lastSyncResult,
@@ -114,6 +115,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   // Dedicated sub-sections for 'PRIVACY' and 'ABOUT' (only visible when clicked, replacing the main profile view)
   const [activeSection, setActiveSection] = useState<'MAIN' | 'PRIVACY'>('MAIN');
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [selectedKotlinFileIndex, setSelectedKotlinFileIndex] = useState(0);
   const [logsClearedFeedback, setLogsClearedFeedback] = useState(false);
   const [testResults, setTestResults] = useState(() =>
@@ -503,26 +505,24 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           <Edit3 className="w-4 h-4 text-[#8E9BAE] shrink-0" />
         </div>
 
-        {/* Quick Auth Actions */}
+        {/* Quick Actions (Sync Now & Sign Out with confirmation) */}
         <div className="flex items-center gap-2 pt-2 border-t border-slate-700/20">
           <button
             type="button"
-            onClick={onOpenAuthModal}
+            onClick={handleManualSync}
+            disabled={isManualSyncing}
             className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
               isDark
-                ? 'bg-[#1E2B45] text-[#5CA4F8] hover:bg-[#263757]'
-                : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                ? 'bg-[#1E2B45] text-[#2CD48D] hover:bg-[#263757]'
+                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
             }`}
           >
-            <UserCheck className="w-3.5 h-3.5" />
-            <span>{getTranslation('auth_switch_account', lang)}</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${isManualSyncing ? 'animate-spin' : ''}`} />
+            <span>{isManualSyncing ? getTranslation('sync_syncing', lang) : getTranslation('sync_now', lang)}</span>
           </button>
           <button
             type="button"
-            onClick={() => {
-              signOut();
-              onOpenAuthModal?.();
-            }}
+            onClick={() => setShowSignOutConfirm(true)}
             className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
               isDark
                 ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
@@ -1085,6 +1085,58 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             >
               {lang === 'am' ? 'ዝጋ' : 'Close'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Sign Out & Permanent Local Data Deletion Confirmation Modal */}
+      {showSignOutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+          <div
+            className={`w-full max-w-sm rounded-3xl p-6 shadow-2xl border ${
+              isDark
+                ? 'bg-[#0B0F1A] border-red-500/30 text-white'
+                : 'bg-white border-red-200 text-slate-900'
+            }`}
+          >
+            <div className="w-12 h-12 rounded-2xl bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-400 mb-4">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-lg font-black tracking-tight mb-2">
+              {lang === 'am' ? 'ከመለያ ይውጡ እና ዳታ ያጽዱ?' : 'Sign Out & Clear Device Data?'}
+            </h3>
+
+            <p className="text-xs text-slate-400 leading-relaxed mb-6 font-medium">
+              {lang === 'am'
+                ? 'ማስጠንቀቂያ፡ ከመለያ መውጣት ሁሉንም የጉዞ እና የክፍያ መረጃዎች ከዚህ ስልክ ላይ በቋሚነት ያጠፋል። በክላውድ የተመሳሰለው ዳታ ግን ተጠብቆ ይቆያል። እርግጠኛ ኖት?'
+                : 'Warning: Signing out will permanently delete this driver account and all local trips and payments from this phone. Synchronized records remain safe in the cloud database. Are you sure you want to proceed?'}
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setShowSignOutConfirm(false)}
+                className={`py-3 px-4 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                  isDark
+                    ? 'bg-white/10 hover:bg-white/15 text-white'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                }`}
+              >
+                {lang === 'am' ? 'ይቅር' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowSignOutConfirm(false);
+                  await deleteAccountAndSignOut();
+                  onOpenAuthModal?.();
+                }}
+                className="py-3 px-4 rounded-xl text-xs font-extrabold bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/30 transition-colors cursor-pointer"
+              >
+                {lang === 'am' ? 'አዎ፣ ውጣ' : 'Yes, Sign Out'}
+              </button>
+            </div>
           </div>
         </div>
       )}

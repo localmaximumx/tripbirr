@@ -30,8 +30,8 @@ import {
 import { formatMinorUnits, getDriverFirstName } from '../utils/formatters';
 import { isPositiveIncomingTransaction } from '../services/reports/reportService';
 import {
-  signUpWithEmail,
-  signInWithEmail,
+  signUpDriver,
+  signInDriver,
   signOutUser,
   resetPasswordForEmail,
   getCurrentUser,
@@ -124,11 +124,11 @@ interface TripBirrState {
   }) => { success: boolean; error?: string };
   signIn: (phone: string, pin: string) => { success: boolean; error?: string };
   signOut: () => void;
-  switchAccount: (accountId: string) => { success: boolean; error?: string };
+  deleteAccountAndSignOut: () => Promise<void>;
 
-  // Actions — Supabase Cloud Auth & Sync
+  // Actions — Cloud Auth & Sync
   signUpWithCloud: (params: SignUpParams) => Promise<AuthResult>;
-  signInWithCloud: (email: string, password: string) => Promise<AuthResult>;
+  signInWithCloud: (identifier: string, pinOrPassword: string) => Promise<AuthResult>;
   signOutCloud: () => Promise<{ success: boolean; error?: string }>;
   resetPasswordCloud: (email: string) => Promise<{ success: boolean; error?: string }>;
   triggerManualSync: () => Promise<SyncResult>;
@@ -332,7 +332,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         cloud_sync_enabled: true,
       };
 
-      const updatedAccounts = [newAccount, ...current.accounts];
+      const updatedAccounts = [newAccount];
       const updatedProfile: DriverProfileRecord = {
         ...current.driverProfile,
         id: `driver_${Date.now()}`,
@@ -379,9 +379,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       }
 
       const nowIso = new Date().toISOString();
-      const updatedAccounts = current.accounts.map((a) =>
-        a.id === account.id ? { ...a, last_login_at: nowIso } : a
-      );
+      const updatedAccount = { ...account, last_login_at: nowIso };
 
       const updatedProfile: DriverProfileRecord = {
         ...current.driverProfile,
@@ -403,7 +401,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       };
 
       persistState({
-        accounts: updatedAccounts,
+        accounts: [updatedAccount],
         driverProfile: updatedProfile,
         settings: updatedSettings,
         isLoggedIn: true,
@@ -432,18 +430,63 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       });
     },
 
-    switchAccount: (accountId) => {
-      const current = get();
-      const target = current.accounts.find((a) => a.id === accountId);
-      if (!target) {
-        return { success: false, error: 'Account not found' };
-      }
-      return get().signIn(target.phone, target.pin);
+    deleteAccountAndSignOut: async () => {
+      try {
+        await signOutUser();
+      } catch (_e) {}
+
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem('tripbirr_sqlite_v5_real_trips');
+          localStorage.removeItem('tripbirr_saved_accounts');
+          localStorage.removeItem('tripbirr_auth_session');
+        }
+      } catch (_e) {}
+
+      const nowIso = new Date().toISOString();
+      persistState({
+        trips: [],
+        transactions: [],
+        smsProcessingRecords: [],
+        accounts: [],
+        driverProfile: {
+          id: 'driver_guest',
+          full_name: '',
+          sms_greeting_name: '',
+          telebirr_phone: '',
+          account_type: 'PERSONAL_EMONEY',
+          vehicle_type: 'MINIBUS_TAXI',
+          vehicle_plate: '',
+          primary_corridor: '',
+          sub_city: '',
+          daily_target_minor_units: 150000,
+          driver_license_number: '',
+          created_at: nowIso,
+          updated_at: nowIso,
+        },
+        settings: {
+          ...get().settings,
+          is_logged_in: false,
+          logged_in_phone: null,
+          cloud_user_id: null,
+          cloud_user_email: null,
+          cloud_sync_enabled: false,
+          last_synced_at: null,
+        },
+        cloudUser: null,
+        cloudSession: null,
+        isLoggedIn: false,
+        syncState: 'idle',
+        lastSyncResult: null,
+        latestAlert: null,
+        pendingAssociationPrompt: null,
+        dailyTargetAlert: null,
+      });
     },
 
     signUpWithCloud: async (params: SignUpParams) => {
       set({ syncState: 'syncing' });
-      const authRes = await signUpWithEmail(params);
+      const authRes = await signUpDriver(params);
       if (!authRes.success || !authRes.user) {
         set({ syncState: 'error' });
         return authRes;
@@ -454,16 +497,21 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       const nowIso = new Date().toISOString();
       const firstName = params.fullName.trim().split(/\s+/)[0] || 'Driver';
 
+      const defaultVehicleType = params.vehicleType || current.driverProfile.vehicle_type || 'MINIBUS_TAXI';
+      const defaultPlate = params.vehiclePlate?.trim() || current.driverProfile.vehicle_plate || 'Code 3 - A58291 AA';
+      const defaultRoute = params.primaryCorridor?.trim() || current.driverProfile.primary_corridor || 'Bole ↔ Megenagna / Piassa';
+      const defaultTarget = params.dailyTargetMinorUnits || current.driverProfile.daily_target_minor_units || 150000;
+
       const updatedProfile: DriverProfileRecord = {
         ...current.driverProfile,
         id: user.id,
         full_name: params.fullName.trim(),
         sms_greeting_name: firstName,
         telebirr_phone: params.phone?.trim() || current.driverProfile.telebirr_phone,
-        vehicle_type: params.vehicleType || current.driverProfile.vehicle_type,
-        vehicle_plate: params.vehiclePlate?.trim() || current.driverProfile.vehicle_plate,
-        primary_corridor: params.primaryCorridor?.trim() || current.driverProfile.primary_corridor,
-        daily_target_minor_units: params.dailyTargetMinorUnits || current.driverProfile.daily_target_minor_units,
+        vehicle_type: defaultVehicleType,
+        vehicle_plate: defaultPlate,
+        primary_corridor: defaultRoute,
+        daily_target_minor_units: defaultTarget,
         updated_at: nowIso,
       };
 
@@ -478,16 +526,16 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         last_synced_at: nowIso,
       };
 
-      const newAccount: DriverAccountRecord = {
+      const singleAccount: DriverAccountRecord = {
         id: `acc_cloud_${user.id.slice(0, 8)}`,
         phone: params.phone?.trim() || user.email || 'Cloud Driver',
         full_name: params.fullName.trim(),
         sms_greeting_name: firstName,
-        pin: '1234',
-        vehicle_type: params.vehicleType || 'MINIBUS_TAXI',
-        vehicle_plate: params.vehiclePlate?.trim() || '',
-        primary_corridor: params.primaryCorridor?.trim() || '',
-        daily_target_minor_units: params.dailyTargetMinorUnits || 200000,
+        pin: params.pin?.trim() || '1234',
+        vehicle_type: defaultVehicleType,
+        vehicle_plate: defaultPlate,
+        primary_corridor: defaultRoute,
+        daily_target_minor_units: defaultTarget,
         created_at: nowIso,
         last_login_at: nowIso,
         cloud_sync_enabled: true,
@@ -498,7 +546,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         schemaVersion: current.schemaVersion,
         appliedMigrations: current.appliedMigrations,
         driverProfile: updatedProfile,
-        accounts: [newAccount, ...current.accounts.filter((a) => a.phone !== newAccount.phone)],
+        accounts: [singleAccount],
         trips: current.trips,
         transactions: current.transactions,
         smsProcessingRecords: current.smsProcessingRecords,
@@ -512,7 +560,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         cloudSession: authRes.session || null,
         isLoggedIn: true,
         driverProfile: migration.updatedState.driverProfile,
-        accounts: migration.updatedState.accounts,
+        accounts: [singleAccount],
         trips: migration.updatedState.trips,
         transactions: migration.updatedState.transactions,
         smsProcessingRecords: migration.updatedState.smsProcessingRecords,
@@ -525,9 +573,9 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       return authRes;
     },
 
-    signInWithCloud: async (email: string, password: string) => {
+    signInWithCloud: async (identifier: string, pinOrPassword: string) => {
       set({ syncState: 'syncing' });
-      const authRes = await signInWithEmail(email, password);
+      const authRes = await signInDriver(identifier, pinOrPassword);
       if (!authRes.success || !authRes.user) {
         set({ syncState: 'error' });
         return authRes;
@@ -536,12 +584,29 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       const user = authRes.user;
       const current = get();
       const nowIso = new Date().toISOString();
+      const meta = user.user_metadata || {};
+      const firstName = (meta.full_name || identifier).trim().split(/\s+/)[0] || 'Driver';
+
+      const singleAccount: DriverAccountRecord = {
+        id: `acc_cloud_${user.id.slice(0, 8)}`,
+        phone: meta.phone || user.email || identifier,
+        full_name: meta.full_name || identifier,
+        sms_greeting_name: firstName,
+        pin: pinOrPassword.length === 4 ? pinOrPassword : '1234',
+        vehicle_type: meta.vehicle_type || 'MINIBUS_TAXI',
+        vehicle_plate: meta.vehicle_plate || 'Code 3 - A58291 AA',
+        primary_corridor: meta.primary_corridor || 'Bole ↔ Megenagna / Piassa',
+        daily_target_minor_units: meta.daily_target_minor_units || 150000,
+        created_at: nowIso,
+        last_login_at: nowIso,
+        cloud_sync_enabled: true,
+      };
 
       const currentDb: DatabaseState = {
         schemaVersion: current.schemaVersion,
         appliedMigrations: current.appliedMigrations,
         driverProfile: current.driverProfile,
-        accounts: current.accounts,
+        accounts: [singleAccount],
         trips: current.trips,
         transactions: current.transactions,
         smsProcessingRecords: current.smsProcessingRecords,
@@ -550,7 +615,8 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
           is_logged_in: true,
           cloud_sync_enabled: true,
           cloud_user_id: user.id,
-          cloud_user_email: user.email || email,
+          cloud_user_email: user.email || identifier,
+          logged_in_phone: singleAccount.phone,
         },
       };
 
@@ -562,6 +628,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         cloudSession: authRes.session || null,
         isLoggedIn: true,
         driverProfile: restoration.updatedState.driverProfile,
+        accounts: [singleAccount],
         trips: restoration.updatedState.trips,
         transactions: restoration.updatedState.transactions,
         smsProcessingRecords: restoration.updatedState.smsProcessingRecords,

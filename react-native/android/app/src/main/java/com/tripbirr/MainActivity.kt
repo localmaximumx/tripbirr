@@ -112,19 +112,33 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         setContentView(webView)
         webView.loadUrl("https://appassets.androidplatform.net/assets/web/index.html")
 
-        // 3. Hardware back button handling
+        // 3. Hardware back button handling: delegates to web SPA first (modals/tabs)
+        var lastBackPressTime = 0L
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (webView.canGoBack()) {
-                    webView.goBack()
-                } else {
-                    finish()
+                webView.evaluateJavascript(
+                    "(function() { return (typeof window.handleHardwareBackPress === 'function') ? window.handleHardwareBackPress() : false; })();"
+                ) { result ->
+                    val handled = result != null && result.trim() == "true"
+                    if (!handled) {
+                        if (webView.canGoBack()) {
+                            webView.goBack()
+                        } else {
+                            val now = System.currentTimeMillis()
+                            if (now - lastBackPressTime < 2000) {
+                                finish()
+                            } else {
+                                lastBackPressTime = now
+                                Toast.makeText(this@MainActivity, "Press back again to exit", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
                 }
             }
         })
 
-        // 4. Request runtime permissions (SMS and Fine Location)
-        requestAppPermissions()
+        // 4. Runtime permissions are NOT requested on startup.
+        // They are only triggered when the user explicitly hits "Accept and Continue" via TripBirrNative.requestPermissions()
 
         // 5. Register internal broadcast receiver for incoming Telebirr SMS
         val filter = IntentFilter(SmsReceiver.ACTION_NEW_TELEBIRR_SMS)
