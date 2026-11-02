@@ -12,6 +12,7 @@ import {
   EyeOff,
   Loader2,
   Lock,
+  LogIn,
   LogOut,
   MapPin,
   RefreshCw,
@@ -77,7 +78,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [isManualSyncing, setIsManualSyncing] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
 
+  const isCloudConnected = Boolean(cloudUser || settings.cloud_user_id);
+
   const handleManualSync = async () => {
+    if (!isCloudConnected) {
+      if (onOpenAuthModal) {
+        onOpenAuthModal();
+      }
+      return;
+    }
+
     setIsManualSyncing(true);
     setSyncFeedback(null);
     try {
@@ -610,9 +620,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                         ? getTranslation('sync_syncing', lang)
                         : syncState === 'offline'
                         ? getTranslation('sync_offline', lang)
-                        : cloudUser
+                        : isCloudConnected
                         ? 'Cloud Connected'
-                        : 'Local Storage Mode'}
+                        : (lang === 'am' ? 'የስልክ ዳታቤዝ (ለመመሳሰል ይግቡ)' : 'Local Storage (Sign in to sync)')}
                     </span>
                   </div>
                 </div>
@@ -622,12 +632,21 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 type="button"
                 onClick={handleManualSync}
                 disabled={isManualSyncing}
-                className="px-3.5 py-1.5 rounded-xl bg-[#1E2B45] hover:bg-[#28395B] disabled:opacity-50 text-[#5CA4F8] text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer"
+                className={`px-3.5 py-1.5 rounded-xl disabled:opacity-50 text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  !isCloudConnected
+                    ? 'bg-[#2CD48D] hover:bg-[#25B87B] text-[#052115] shadow-xs'
+                    : 'bg-[#1E2B45] hover:bg-[#28395B] text-[#5CA4F8]'
+                }`}
               >
                 {isManualSyncing ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     <span>Syncing...</span>
+                  </>
+                ) : !isCloudConnected ? (
+                  <>
+                    <LogIn className="w-3.5 h-3.5" />
+                    <span>{lang === 'am' ? 'ይግቡና ያመሳስሉ' : 'Sign in to Sync'}</span>
                   </>
                 ) : (
                   <>

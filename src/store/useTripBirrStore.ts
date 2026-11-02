@@ -602,7 +602,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
           syncedTripsCount: 0,
           syncedTransactionsCount: 0,
           syncedClassificationsCount: 0,
-          errors: ['No authenticated cloud user found. Sign in first.'],
+          errors: ['Please create an account or sign in to sync with the cloud database.'],
         };
         set({ syncState: 'error', lastSyncResult: failure });
         return failure;
