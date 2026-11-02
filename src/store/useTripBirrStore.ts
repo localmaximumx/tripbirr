@@ -16,7 +16,6 @@ import {
   createSeedDatabaseState,
   CURRENT_DEMO_DISPLAY_DATE,
   CURRENT_DEMO_ISO_DATE,
-  DEFAULT_ACCOUNTS,
   loadDatabaseFromStorage,
   saveDatabaseToStorage,
   DatabaseState,
@@ -285,8 +284,8 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
     accounts:
       initialDb.accounts && Array.isArray(initialDb.accounts) && initialDb.accounts.length > 0
         ? initialDb.accounts
-        : [...DEFAULT_ACCOUNTS],
-    isLoggedIn: Boolean(initialDb.settings?.is_logged_in ?? true),
+        : [],
+    isLoggedIn: Boolean(initialDb.settings?.is_logged_in === true),
     trips: initialDb.trips,
     transactions: initialDb.transactions,
     smsProcessingRecords: initialDb.smsProcessingRecords,

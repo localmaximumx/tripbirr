@@ -77,6 +77,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'dark',
   schema_version: CURRENT_SCHEMA_VERSION,
   first_launch_completed: false,
+  is_logged_in: false,
+  logged_in_phone: null,
+  cloud_user_id: null,
+  cloud_user_email: null,
   privacy_hide_balance: false,
   privacy_mask_sender_names: false,
   privacy_mask_phones: false,
@@ -1107,11 +1111,46 @@ function getPersistedHideBalancePreference(fallback: boolean): boolean {
   return fallback;
 }
 
+export function createEmptyDatabaseState(): DatabaseState {
+  const nowIso = new Date().toISOString();
+  return {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    appliedMigrations: SQLITE_MIGRATIONS.map((m) => m.name),
+    driverProfile: {
+      id: 'driver_guest',
+      full_name: '',
+      sms_greeting_name: '',
+      telebirr_phone: '',
+      account_type: 'PERSONAL_EMONEY',
+      vehicle_type: 'MINIBUS_TAXI',
+      vehicle_plate: '',
+      primary_corridor: '',
+      sub_city: '',
+      daily_target_minor_units: 200000,
+      driver_license_number: '',
+      created_at: nowIso,
+      updated_at: nowIso,
+    },
+    accounts: [],
+    trips: [],
+    transactions: [],
+    smsProcessingRecords: [],
+    settings: {
+      ...DEFAULT_SETTINGS,
+      is_logged_in: false,
+      first_launch_completed: false,
+      logged_in_phone: null,
+      cloud_user_id: null,
+      cloud_user_email: null,
+    },
+  };
+}
+
 export function loadDatabaseFromStorage(): DatabaseState {
   try {
     const raw = localStorage.getItem(DB_STORAGE_KEY);
     if (!raw) {
-      const seeded = createSeedDatabaseState();
+      const seeded = createEmptyDatabaseState();
       seeded.settings = {
         ...seeded.settings,
         privacy_hide_balance: getPersistedHideBalancePreference(
@@ -1123,7 +1162,7 @@ export function loadDatabaseFromStorage(): DatabaseState {
     }
     const parsed = JSON.parse(raw) as DatabaseState;
     if (!parsed.driverProfile) {
-      parsed.driverProfile = DEFAULT_DRIVER_PROFILE;
+      parsed.driverProfile = createEmptyDatabaseState().driverProfile;
     }
     parsed.settings = {
       ...DEFAULT_SETTINGS,
@@ -1133,6 +1172,7 @@ export function loadDatabaseFromStorage(): DatabaseState {
       ),
       schema_version: CURRENT_SCHEMA_VERSION,
       first_launch_completed: Boolean(parsed.settings?.first_launch_completed),
+      is_logged_in: Boolean(parsed.settings?.is_logged_in === true),
     };
     if (!parsed.schemaVersion || parsed.schemaVersion < CURRENT_SCHEMA_VERSION) {
       parsed.schemaVersion = CURRENT_SCHEMA_VERSION;
@@ -1141,7 +1181,7 @@ export function loadDatabaseFromStorage(): DatabaseState {
     }
     return parsed;
   } catch {
-    return createSeedDatabaseState();
+    return createEmptyDatabaseState();
   }
 }
 
