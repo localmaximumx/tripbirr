@@ -4,20 +4,23 @@ import {
   CheckCircle2,
   ChevronRight,
   Cloud,
+  CloudOff,
   Code2,
   Database,
-  LogOut,
-  UserCheck,
   Download,
   Edit3,
   EyeOff,
+  Loader2,
   Lock,
+  LogOut,
   MapPin,
+  RefreshCw,
   RotateCcw,
-  ShieldCheck,
   Shield,
+  ShieldCheck,
   Sparkles,
   Trash2,
+  UserCheck,
   Volume2,
   XCircle,
 } from 'lucide-react';
@@ -61,10 +64,40 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     clearSmsAuditLogs,
     resetToSeedDatabase,
     signOut,
+    cloudUser,
+    syncState,
+    lastSyncResult,
+    lastSyncedAt,
+    triggerManualSync,
   } = useTripBirrStore();
 
   const isDark = settings.theme === 'dark';
   const lang = (settings.language || 'en') as Language;
+
+  const [isManualSyncing, setIsManualSyncing] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+
+  const handleManualSync = async () => {
+    setIsManualSyncing(true);
+    setSyncFeedback(null);
+    try {
+      const res = await triggerManualSync();
+      if (res.success) {
+        setSyncFeedback(
+          lang === 'am'
+            ? `ተመሳስሏል! (${res.syncedTripsCount} ጉዞዎች፣ ${res.syncedTransactionsCount} ክፍያዎች)`
+            : `Sync complete! (${res.syncedTripsCount} trips, ${res.syncedTransactionsCount} payments)`
+        );
+      } else {
+        setSyncFeedback(res.errors[0] || (lang === 'am' ? 'ማመሳሰል አልተሳካም' : 'Sync error'));
+      }
+    } catch (err: any) {
+      setSyncFeedback(err?.message || 'Sync failed');
+    } finally {
+      setIsManualSyncing(false);
+      setTimeout(() => setSyncFeedback(null), 4000);
+    }
+  };
 
   // Segmented control: 'SETTINGS' (default as shown on Page 5) or 'OVERVIEW'
   const [subTab, setSubTab] = useState<'OVERVIEW' | 'SETTINGS'>('SETTINGS');
@@ -531,6 +564,126 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
       {subTab === 'SETTINGS' ? (
         <>
+          {/* Cloud Database Synchronization & Recovery Card */}
+          <section
+            className={`rounded-[26px] p-5 space-y-4 border ${
+              isDark
+                ? 'bg-[#141B2D] border-white/5'
+                : 'bg-white border-slate-200/80 shadow-xs'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className={`p-2.5 rounded-2xl ${
+                    syncState === 'synced'
+                      ? 'bg-[#2CD48D]/15 text-[#2CD48D]'
+                      : syncState === 'syncing'
+                      ? 'bg-[#5CA4F8]/15 text-[#5CA4F8]'
+                      : syncState === 'offline'
+                      ? 'bg-amber-500/15 text-amber-400'
+                      : 'bg-slate-800 text-slate-300'
+                  }`}
+                >
+                  <Cloud className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className={`text-sm font-extrabold ${isDark ? 'text-white' : 'text-[#0F172A]'}`}>
+                    {getTranslation('sync_title', lang)}
+                  </h3>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        syncState === 'synced'
+                          ? 'bg-[#2CD48D]'
+                          : syncState === 'syncing'
+                          ? 'bg-[#5CA4F8] animate-pulse'
+                          : syncState === 'offline'
+                          ? 'bg-amber-400'
+                          : 'bg-slate-400'
+                      }`}
+                    />
+                    <span className="text-[11px] text-[#8E9BAE]">
+                      {syncState === 'synced'
+                        ? getTranslation('sync_synced', lang)
+                        : syncState === 'syncing'
+                        ? getTranslation('sync_syncing', lang)
+                        : syncState === 'offline'
+                        ? getTranslation('sync_offline', lang)
+                        : cloudUser
+                        ? 'Cloud Connected'
+                        : 'Local Storage Mode'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleManualSync}
+                disabled={isManualSyncing}
+                className="px-3.5 py-1.5 rounded-xl bg-[#1E2B45] hover:bg-[#28395B] disabled:opacity-50 text-[#5CA4F8] text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                {isManualSyncing ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Syncing...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>{getTranslation('sync_now', lang)}</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Sync Feedback Message */}
+            {syncFeedback && (
+              <div className="p-2.5 rounded-xl bg-[#2CD48D]/15 border border-[#2CD48D]/40 text-[#2CD48D] text-xs font-bold animate-in fade-in flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{syncFeedback}</span>
+              </div>
+            )}
+
+            {/* Account & Sync Metadata */}
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className={`p-2.5 rounded-xl ${isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'}`}>
+                <p className="text-[11px] text-[#8E9BAE]">Account</p>
+                <p className={`font-bold truncate mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  {cloudUser?.email || settings.cloud_user_email || driverProfile.full_name}
+                </p>
+              </div>
+              <div className={`p-2.5 rounded-xl ${isDark ? 'bg-[#0B0F1A]' : 'bg-slate-50'}`}>
+                <p className="text-[11px] text-[#8E9BAE]">{getTranslation('sync_last_synced', lang)}</p>
+                <p className={`font-bold truncate mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  {lastSyncedAt
+                    ? new Date(lastSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : getTranslation('sync_never', lang)}
+                </p>
+              </div>
+            </div>
+
+            {/* Sub-actions */}
+            <div className="pt-2 border-t border-slate-700/20 flex items-center justify-between text-xs">
+              <button
+                type="button"
+                onClick={onOpenAuthModal}
+                className="text-[#5CA4F8] hover:underline font-bold cursor-pointer"
+              >
+                {cloudUser ? 'Switch or Manage Account' : 'Sign in to Cloud Database'}
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadSqliteDump}
+                className="text-[#8E9BAE] hover:text-white flex items-center gap-1 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download .sql Dump</span>
+              </button>
+            </div>
+          </section>
+
           {/* 7-Item Settings Menu Card */}
           <section
             className={`rounded-[26px] overflow-hidden divide-y ${

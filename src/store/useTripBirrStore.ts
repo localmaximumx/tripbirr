@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { User, Session } from '@supabase/supabase-js';
 import {
   AppSettings,
   DriverAccountRecord,
@@ -18,6 +19,7 @@ import {
   DEFAULT_ACCOUNTS,
   loadDatabaseFromStorage,
   saveDatabaseToStorage,
+  DatabaseState,
 } from '../database/database';
 import { evaluateIncomingSms } from '../services/sms/smsProcessor';
 import { ProcessingStatus, RawSmsInput, SmsMessageType } from '../services/sms/smsTypes';
@@ -27,6 +29,26 @@ import {
 } from '../services/notifications/notificationService';
 import { formatMinorUnits, getDriverFirstName } from '../utils/formatters';
 import { isPositiveIncomingTransaction } from '../services/reports/reportService';
+import {
+  signUpWithEmail,
+  signInWithEmail,
+  signOutUser,
+  resetPasswordForEmail,
+  getCurrentUser,
+  getCurrentSession,
+  onAuthStateChange,
+  SignUpParams,
+  AuthResult,
+} from '../services/auth/authService';
+import {
+  performFullSync,
+  migrateLocalDataOnRegistration,
+  restoreCloudDataOnLogin,
+  isNetworkAvailable,
+  SyncResult,
+  SyncState,
+} from '../services/sync/syncService';
+import { isSupabaseConfigured } from '../services/supabase/supabaseClient';
 
 export interface PendingTripAssociationPrompt {
   transactionRecordId: string;
@@ -74,6 +96,13 @@ interface TripBirrState {
   smsProcessingRecords: SmsProcessingRecord[];
   settings: AppSettings;
 
+  // Cloud Authentication & Sync State
+  cloudUser: User | null;
+  cloudSession: Session | null;
+  syncState: SyncState;
+  lastSyncResult: SyncResult | null;
+  lastSyncedAt: string | null;
+
   // Live notification banner, non-destructive association prompt & daily target achievement alert
   latestAlert: DriverPaymentAlert | null;
   pendingAssociationPrompt: PendingTripAssociationPrompt | null;
@@ -96,6 +125,13 @@ interface TripBirrState {
   signIn: (phone: string, pin: string) => { success: boolean; error?: string };
   signOut: () => void;
   switchAccount: (accountId: string) => { success: boolean; error?: string };
+
+  // Actions — Supabase Cloud Auth & Sync
+  signUpWithCloud: (params: SignUpParams) => Promise<AuthResult>;
+  signInWithCloud: (email: string, password: string) => Promise<AuthResult>;
+  signOutCloud: () => Promise<{ success: boolean; error?: string }>;
+  resetPasswordCloud: (email: string) => Promise<{ success: boolean; error?: string }>;
+  triggerManualSync: () => Promise<SyncResult>;
 
   // Actions — Driver Profile
   updateDriverProfile: (updates: Partial<DriverProfileRecord>) => void;
@@ -173,11 +209,23 @@ interface TripBirrState {
 
 const initialDb = loadDatabaseFromStorage();
 
-export const useTripBirrStore = create<TripBirrState>((set, get) => {
-  const persistState = (next: Partial<TripBirrState>) => {
-    set(next);
+let autoSyncTimeout: any = null;
+
+function triggerBackgroundSync(userId: string, get: () => TripBirrState, set: (patch: Partial<TripBirrState>) => void) {
+  if (!isSupabaseConfigured()) return;
+  if (!isNetworkAvailable()) {
+    set({ syncState: 'offline' });
+    return;
+  }
+
+  if (autoSyncTimeout) {
+    clearTimeout(autoSyncTimeout);
+  }
+
+  autoSyncTimeout = setTimeout(async () => {
+    set({ syncState: 'syncing' });
     const current = get();
-    saveDatabaseToStorage({
+    const currentState: DatabaseState = {
       schemaVersion: current.schemaVersion,
       appliedMigrations: current.appliedMigrations,
       driverProfile: current.driverProfile,
@@ -186,19 +234,70 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       transactions: current.transactions,
       smsProcessingRecords: current.smsProcessingRecords,
       settings: current.settings,
-    });
+    };
+
+    try {
+      const outcome = await performFullSync(userId, currentState);
+      saveDatabaseToStorage(outcome.updatedState);
+      set({
+        driverProfile: outcome.updatedState.driverProfile,
+        trips: outcome.updatedState.trips,
+        transactions: outcome.updatedState.transactions,
+        smsProcessingRecords: outcome.updatedState.smsProcessingRecords,
+        settings: outcome.updatedState.settings,
+        syncState: outcome.result.success ? 'synced' : 'error',
+        lastSyncResult: outcome.result,
+        lastSyncedAt: outcome.result.lastSyncedAt || new Date().toISOString(),
+      });
+    } catch {
+      set({ syncState: 'error' });
+    }
+  }, 1500);
+}
+
+export const useTripBirrStore = create<TripBirrState>((set, get) => {
+  const persistState = (next: Partial<TripBirrState>) => {
+    set(next);
+    const current = get();
+    const dbToSave: DatabaseState = {
+      schemaVersion: current.schemaVersion,
+      appliedMigrations: current.appliedMigrations,
+      driverProfile: current.driverProfile,
+      accounts: current.accounts,
+      trips: current.trips,
+      transactions: current.transactions,
+      smsProcessingRecords: current.smsProcessingRecords,
+      settings: current.settings,
+    };
+    saveDatabaseToStorage(dbToSave);
+
+    // If driver is signed in with cloud account, trigger debounced background sync
+    const activeUserId = current.cloudUser?.id || current.settings.cloud_user_id;
+    if (activeUserId && current.settings.cloud_sync_enabled !== false) {
+      triggerBackgroundSync(activeUserId, get, set);
+    }
   };
 
   return {
     schemaVersion: initialDb.schemaVersion,
     appliedMigrations: initialDb.appliedMigrations,
     driverProfile: initialDb.driverProfile,
-    accounts: initialDb.accounts && Array.isArray(initialDb.accounts) && initialDb.accounts.length > 0 ? initialDb.accounts : [...DEFAULT_ACCOUNTS],
+    accounts:
+      initialDb.accounts && Array.isArray(initialDb.accounts) && initialDb.accounts.length > 0
+        ? initialDb.accounts
+        : [...DEFAULT_ACCOUNTS],
     isLoggedIn: Boolean(initialDb.settings?.is_logged_in ?? true),
     trips: initialDb.trips,
     transactions: initialDb.transactions,
     smsProcessingRecords: initialDb.smsProcessingRecords,
     settings: initialDb.settings,
+
+    cloudUser: null,
+    cloudSession: null,
+    syncState: 'idle',
+    lastSyncResult: null,
+    lastSyncedAt: initialDb.settings?.last_synced_at || null,
+
     latestAlert: null,
     pendingAssociationPrompt: null,
     dailyTargetAlert: null,
@@ -315,41 +414,255 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
 
     signOut: () => {
       const current = get();
+      if (current.cloudUser) {
+        signOutUser().catch(() => {});
+      }
       persistState({
         settings: {
           ...current.settings,
           is_logged_in: false,
+          logged_in_phone: null,
+          cloud_user_id: null,
+          cloud_user_email: null,
         },
+        cloudUser: null,
+        cloudSession: null,
         isLoggedIn: false,
+        syncState: 'idle',
       });
     },
 
     switchAccount: (accountId) => {
       const current = get();
-      const account = current.accounts.find((a) => a.id === accountId);
-      if (!account) {
-        return { success: false, error: 'auth_login_error_not_found' };
+      const target = current.accounts.find((a) => a.id === accountId);
+      if (!target) {
+        return { success: false, error: 'Account not found' };
       }
-      return get().signIn(account.phone, account.pin);
+      return get().signIn(target.phone, target.pin);
+    },
+
+    signUpWithCloud: async (params: SignUpParams) => {
+      set({ syncState: 'syncing' });
+      const authRes = await signUpWithEmail(params);
+      if (!authRes.success || !authRes.user) {
+        set({ syncState: 'error' });
+        return authRes;
+      }
+
+      const user = authRes.user;
+      const current = get();
+      const nowIso = new Date().toISOString();
+      const firstName = params.fullName.trim().split(/\s+/)[0] || 'Driver';
+
+      const updatedProfile: DriverProfileRecord = {
+        ...current.driverProfile,
+        id: user.id,
+        full_name: params.fullName.trim(),
+        sms_greeting_name: firstName,
+        telebirr_phone: params.phone?.trim() || current.driverProfile.telebirr_phone,
+        vehicle_type: params.vehicleType || current.driverProfile.vehicle_type,
+        vehicle_plate: params.vehiclePlate?.trim() || current.driverProfile.vehicle_plate,
+        primary_corridor: params.primaryCorridor?.trim() || current.driverProfile.primary_corridor,
+        daily_target_minor_units: params.dailyTargetMinorUnits || current.driverProfile.daily_target_minor_units,
+        updated_at: nowIso,
+      };
+
+      const updatedSettings: AppSettings = {
+        ...current.settings,
+        is_logged_in: true,
+        logged_in_phone: params.phone?.trim() || current.settings.logged_in_phone,
+        first_launch_completed: true,
+        cloud_sync_enabled: true,
+        cloud_user_id: user.id,
+        cloud_user_email: user.email || params.email,
+        last_synced_at: nowIso,
+      };
+
+      const newAccount: DriverAccountRecord = {
+        id: `acc_cloud_${user.id.slice(0, 8)}`,
+        phone: params.phone?.trim() || user.email || 'Cloud Driver',
+        full_name: params.fullName.trim(),
+        sms_greeting_name: firstName,
+        pin: '1234',
+        vehicle_type: params.vehicleType || 'MINIBUS_TAXI',
+        vehicle_plate: params.vehiclePlate?.trim() || '',
+        primary_corridor: params.primaryCorridor?.trim() || '',
+        daily_target_minor_units: params.dailyTargetMinorUnits || 200000,
+        created_at: nowIso,
+        last_login_at: nowIso,
+        cloud_sync_enabled: true,
+      };
+
+      // Upload historical offline data to cloud account (First-time account creation)
+      const currentStateToMigrate: DatabaseState = {
+        schemaVersion: current.schemaVersion,
+        appliedMigrations: current.appliedMigrations,
+        driverProfile: updatedProfile,
+        accounts: [newAccount, ...current.accounts.filter((a) => a.phone !== newAccount.phone)],
+        trips: current.trips,
+        transactions: current.transactions,
+        smsProcessingRecords: current.smsProcessingRecords,
+        settings: updatedSettings,
+      };
+
+      const migration = await migrateLocalDataOnRegistration(user.id, currentStateToMigrate, updatedProfile);
+
+      persistState({
+        cloudUser: user,
+        cloudSession: authRes.session || null,
+        isLoggedIn: true,
+        driverProfile: migration.updatedState.driverProfile,
+        accounts: migration.updatedState.accounts,
+        trips: migration.updatedState.trips,
+        transactions: migration.updatedState.transactions,
+        smsProcessingRecords: migration.updatedState.smsProcessingRecords,
+        settings: migration.updatedState.settings,
+        syncState: migration.result.success ? 'synced' : 'error',
+        lastSyncResult: migration.result,
+        lastSyncedAt: migration.result.lastSyncedAt || nowIso,
+      });
+
+      return authRes;
+    },
+
+    signInWithCloud: async (email: string, password: string) => {
+      set({ syncState: 'syncing' });
+      const authRes = await signInWithEmail(email, password);
+      if (!authRes.success || !authRes.user) {
+        set({ syncState: 'error' });
+        return authRes;
+      }
+
+      const user = authRes.user;
+      const current = get();
+      const nowIso = new Date().toISOString();
+
+      const currentDb: DatabaseState = {
+        schemaVersion: current.schemaVersion,
+        appliedMigrations: current.appliedMigrations,
+        driverProfile: current.driverProfile,
+        accounts: current.accounts,
+        trips: current.trips,
+        transactions: current.transactions,
+        smsProcessingRecords: current.smsProcessingRecords,
+        settings: {
+          ...current.settings,
+          is_logged_in: true,
+          cloud_sync_enabled: true,
+          cloud_user_id: user.id,
+          cloud_user_email: user.email || email,
+        },
+      };
+
+      // Restore data from cloud onto this device
+      const restoration = await restoreCloudDataOnLogin(user.id, currentDb);
+
+      persistState({
+        cloudUser: user,
+        cloudSession: authRes.session || null,
+        isLoggedIn: true,
+        driverProfile: restoration.updatedState.driverProfile,
+        trips: restoration.updatedState.trips,
+        transactions: restoration.updatedState.transactions,
+        smsProcessingRecords: restoration.updatedState.smsProcessingRecords,
+        settings: restoration.updatedState.settings,
+        syncState: restoration.result.success ? 'synced' : 'error',
+        lastSyncResult: restoration.result,
+        lastSyncedAt: restoration.result.lastSyncedAt || nowIso,
+      });
+
+      return authRes;
+    },
+
+    signOutCloud: async () => {
+      const res = await signOutUser();
+      get().signOut();
+      return res;
+    },
+
+    resetPasswordCloud: async (email: string) => {
+      return resetPasswordForEmail(email);
+    },
+
+    triggerManualSync: async () => {
+      const current = get();
+      let userId = current.cloudUser?.id || current.settings.cloud_user_id;
+
+      if (!userId) {
+        const user = await getCurrentUser();
+        if (user) {
+          userId = user.id;
+          set({ cloudUser: user });
+        }
+      }
+
+      if (!userId) {
+        const failure: SyncResult = {
+          success: false,
+          syncedTripsCount: 0,
+          syncedTransactionsCount: 0,
+          syncedClassificationsCount: 0,
+          errors: ['No authenticated cloud user found. Sign in first.'],
+        };
+        set({ syncState: 'error', lastSyncResult: failure });
+        return failure;
+      }
+
+      if (!isNetworkAvailable()) {
+        const offlineRes: SyncResult = {
+          success: false,
+          syncedTripsCount: 0,
+          syncedTransactionsCount: 0,
+          syncedClassificationsCount: 0,
+          errors: ['No internet connection'],
+        };
+        set({ syncState: 'offline', lastSyncResult: offlineRes });
+        return offlineRes;
+      }
+
+      set({ syncState: 'syncing' });
+
+      const currentState: DatabaseState = {
+        schemaVersion: current.schemaVersion,
+        appliedMigrations: current.appliedMigrations,
+        driverProfile: current.driverProfile,
+        accounts: current.accounts,
+        trips: current.trips,
+        transactions: current.transactions,
+        smsProcessingRecords: current.smsProcessingRecords,
+        settings: current.settings,
+      };
+
+      const syncOutcome = await performFullSync(userId, currentState);
+
+      persistState({
+        driverProfile: syncOutcome.updatedState.driverProfile,
+        trips: syncOutcome.updatedState.trips,
+        transactions: syncOutcome.updatedState.transactions,
+        smsProcessingRecords: syncOutcome.updatedState.smsProcessingRecords,
+        settings: syncOutcome.updatedState.settings,
+        syncState: syncOutcome.result.success ? 'synced' : 'error',
+        lastSyncResult: syncOutcome.result,
+        lastSyncedAt: syncOutcome.result.lastSyncedAt || new Date().toISOString(),
+      });
+
+      return syncOutcome.result;
     },
 
     updateDriverProfile: (updates) => {
       const state = get();
       const current = state.driverProfile;
-      const nextFullName =
-        updates.full_name !== undefined ? updates.full_name.trim() : current.full_name;
-      const derivedFirstName =
-        nextFullName.split(/\s+/)[0] || updates.sms_greeting_name || current.sms_greeting_name;
+      const nowIso = new Date().toISOString();
 
       const nextProfile: DriverProfileRecord = {
         ...current,
         ...updates,
-        full_name: nextFullName || current.full_name,
-        sms_greeting_name: derivedFirstName,
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso,
       };
 
-      // Also sync recipient_name in transactions so all references reflect the driver's profile name
+      const derivedFirstName = getDriverFirstName(nextProfile);
+      nextProfile.sms_greeting_name = derivedFirstName;
+
       const updatedTransactions = state.transactions.map((tx) => ({
         ...tx,
         recipient_name: derivedFirstName,
@@ -454,11 +767,12 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         processing_status: processingStatus,
         received_at: nowIso,
         processed_at: new Date().toISOString(),
-        error_message:
-          validation.errors.length > 0 ? validation.errors.join(' ') : null,
+        error_message: validation.errors.length > 0 ? validation.errors.join(' ') : null,
         summary_note: parsed.isValidFinancialTransaction
           ? `${parsed.messageType}: ${formatMinorUnits(parsed.amountMinorUnits, 'ETB')} (${parsed.transactionId || 'No TX ID'})`
           : `Classified as ${parsed.messageType}`,
+        sync_status: 'PENDING',
+        synced_at: null,
       };
 
       if (processingStatus === ProcessingStatus.DUPLICATE) {
@@ -518,6 +832,9 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
             : 'Telebirr SMS 127 auto-captured',
         created_at: nowIso,
         updated_at: nowIso,
+        sync_status: 'PENDING',
+        synced_at: null,
+        version: 1,
       };
 
       const updatedExistingTransactions = state.transactions.map((existingTx) => {
@@ -535,6 +852,7 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
                 ? TransactionStatus.REVERSED
                 : TransactionStatus.REFUNDED,
             updated_at: nowIso,
+            sync_status: 'PENDING' as const,
           };
         }
         return existingTx;
@@ -684,6 +1002,9 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         notes: params.notes?.trim() || null,
         created_at: nowIso,
         updated_at: nowIso,
+        sync_status: 'PENDING',
+        synced_at: null,
+        version: 1,
       };
 
       persistState({
@@ -715,6 +1036,8 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
         status: TripStatus.COMPLETED,
         notes: params.notes !== undefined ? params.notes.trim() || null : target.notes,
         updated_at: endIso,
+        sync_status: 'PENDING',
+        version: (target.version ?? 1) + 1,
       };
 
       persistState({
@@ -734,11 +1057,20 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       persistState({
         trips: state.trips.map((t) =>
           t.id === tripId
-            ? { ...t, status: TripStatus.CANCELLED, end_time: nowIso, updated_at: nowIso }
+            ? {
+                ...t,
+                status: TripStatus.CANCELLED,
+                end_time: nowIso,
+                updated_at: nowIso,
+                sync_status: 'PENDING',
+                version: (t.version ?? 1) + 1,
+              }
             : t
         ),
         transactions: state.transactions.map((tx) =>
-          tx.trip_id === tripId ? { ...tx, trip_id: null, updated_at: nowIso } : tx
+          tx.trip_id === tripId
+            ? { ...tx, trip_id: null, updated_at: nowIso, sync_status: 'PENDING', version: (tx.version ?? 1) + 1 }
+            : tx
         ),
         pendingAssociationPrompt: null,
       });
@@ -749,7 +1081,15 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       const nowIso = `${CURRENT_DEMO_ISO_DATE}T${new Date().toISOString().slice(11)}`;
       persistState({
         trips: state.trips.map((t) =>
-          t.id === tripId ? { ...t, ...updates, updated_at: nowIso } : t
+          t.id === tripId
+            ? {
+                ...t,
+                ...updates,
+                updated_at: nowIso,
+                sync_status: 'PENDING',
+                version: (t.version ?? 1) + 1,
+              }
+            : t
         ),
       });
     },
@@ -760,7 +1100,9 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       persistState({
         trips: state.trips.filter((t) => t.id !== tripId),
         transactions: state.transactions.map((tx) =>
-          tx.trip_id === tripId ? { ...tx, trip_id: null, updated_at: nowIso } : tx
+          tx.trip_id === tripId
+            ? { ...tx, trip_id: null, updated_at: nowIso, sync_status: 'PENDING', version: (tx.version ?? 1) + 1 }
+            : tx
         ),
       });
     },
@@ -782,13 +1124,18 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
       persistState({
         transactions: state.transactions.map((tx) =>
           tx.id === transactionRecordId
-            ? { ...tx, trip_id: tripId, updated_at: nowIso }
+            ? {
+                ...tx,
+                trip_id: tripId,
+                updated_at: nowIso,
+                sync_status: 'PENDING',
+                version: (tx.version ?? 1) + 1,
+              }
             : tx
         ),
         pendingAssociationPrompt:
           isPendingTx || tripId !== null ? null : state.pendingAssociationPrompt,
-        latestAlert:
-          isAlertTx && tripId !== null ? null : state.latestAlert,
+        latestAlert: isAlertTx && tripId !== null ? null : state.latestAlert,
       });
     },
 
@@ -828,6 +1175,9 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
           : 'Note: Cash fare',
         created_at: nowIso,
         updated_at: nowIso,
+        sync_status: 'PENDING',
+        synced_at: null,
+        version: 1,
       };
 
       const nextTransactions = [cashRecord, ...state.transactions];
@@ -893,3 +1243,42 @@ export const useTripBirrStore = create<TripBirrState>((set, get) => {
     },
   };
 });
+
+// Setup online/offline listeners and session restoration
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    const s = useTripBirrStore.getState();
+    s.triggerManualSync().catch(() => {});
+  });
+
+  window.addEventListener('offline', () => {
+    useTripBirrStore.setState({ syncState: 'offline' });
+  });
+
+  getCurrentSession().then((session) => {
+    if (session?.user) {
+      useTripBirrStore.setState({
+        cloudUser: session.user,
+        cloudSession: session,
+        isLoggedIn: true,
+      });
+      useTripBirrStore.getState().triggerManualSync().catch(() => {});
+    }
+  });
+
+  onAuthStateChange((event, session, user) => {
+    if (event === 'SIGNED_IN' && user) {
+      useTripBirrStore.setState({
+        cloudUser: user,
+        cloudSession: session,
+        isLoggedIn: true,
+      });
+    } else if (event === 'SIGNED_OUT') {
+      useTripBirrStore.setState({
+        cloudUser: null,
+        cloudSession: null,
+        syncState: 'idle',
+      });
+    }
+  });
+}

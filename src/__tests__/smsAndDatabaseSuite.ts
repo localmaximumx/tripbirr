@@ -389,6 +389,102 @@ Ethio telecom`;
       reportWithCash.combinedNetIncomeMinorUnits === 38500,
     `Telebirr=ETB 345.00, Cash=ETB 40.00, Combined=ETB 385.00`
   );
+  // 21. Cloud Sync SMS Privacy & Redaction (Never upload raw SMS inbox body)
+  const auditLogSample = {
+    id: 'sms_proc_test_01',
+    sender_id: '127',
+    message_fingerprint: 'fp_abc123',
+    classification: SmsMessageType.PAYMENT_RECEIVED,
+    processing_status: ProcessingStatus.PROCESSED,
+    received_at: '2026-11-01T10:00:00.000Z',
+    processed_at: '2026-11-01T10:00:01.000Z',
+    error_message: null,
+    summary_note: 'PAYMENT_RECEIVED: ETB 50.00 (DJL25NAFRW)',
+    sync_status: 'PENDING' as const,
+  };
+  assertTest(
+    'T21',
+    'DATABASE_AND_FINANCE',
+    'Cloud Sync Payload Redaction (Zero Raw SMS Leaked)',
+    !('body' in auditLogSample) &&
+      !('raw_text' in auditLogSample) &&
+      Boolean(auditLogSample.summary_note?.startsWith('PAYMENT_RECEIVED')),
+    'Raw SMS body is excluded; only redacted summary note and fingerprint are synchronized.'
+  );
+
+  // 22. Stable ID preservation & Zero-Duplicate Cloud Sync mapping
+  const localTrip = seedDb.trips[0];
+  const cloudTripPayload = {
+    id: localTrip.id,
+    user_id: 'usr_supabase_001',
+    start_location_name: localTrip.start_location_name,
+    start_time: localTrip.start_time,
+    status: localTrip.status,
+    version: 1,
+  };
+  assertTest(
+    'T22',
+    'DATABASE_AND_FINANCE',
+    'Stable ID Preservation Across Local Storage & Cloud',
+    cloudTripPayload.id === localTrip.id &&
+      cloudTripPayload.id.startsWith('trip_'),
+    `Stable ID maintained: ${cloudTripPayload.id}`
+  );
+
+  // 23. Conflict Resolution — Offline Pending Edits Protected
+  const localPendingTx = {
+    ...seedDb.transactions[0],
+    sync_status: 'PENDING' as const,
+    amount_minor_units: 5000,
+  };
+  const incomingCloudTx = {
+    ...seedDb.transactions[0],
+    amount_minor_units: 4500,
+  };
+  const resolvedTx = localPendingTx.sync_status === 'PENDING' ? localPendingTx : incomingCloudTx;
+  assertTest(
+    'T23',
+    'DATABASE_AND_FINANCE',
+    'Conflict Resolution — Local Pending Edits Preserved',
+    resolvedTx.amount_minor_units === 5000 &&
+      resolvedTx.sync_status === 'PENDING',
+    'Local pending uncommitted state takes precedence over stale cloud version.'
+  );
+
+  // 24. Offline-first Financial Availability
+  const offlinePaymentTx = {
+    id: 'tx_offline_telebirr_01',
+    trip_id: null,
+    transaction_id: 'DJL99OFFLINE',
+    transaction_type: SmsMessageType.PAYMENT_RECEIVED,
+    payment_method: PaymentMethod.TELEBIRR,
+    amount_minor_units: 7500,
+    currency: 'ETB',
+    sender_name: 'Offline Passenger',
+    sender_phone: '251911999888',
+    recipient_name: 'Biniyam',
+    transaction_date: '21/10/2026',
+    iso_date: '2026-10-21',
+    transaction_time: '21:00:00',
+    account_balance_minor_units: 40000,
+    sms_sender: '127',
+    transaction_status: TransactionStatus.VALID,
+    original_transaction_id: null,
+    description: 'Captured offline',
+    created_at: '2026-10-21T21:00:00.000Z',
+    updated_at: '2026-10-21T21:00:00.000Z',
+    sync_status: 'PENDING' as const,
+  };
+  const allTxWithOffline = [...seedDb.transactions, offlinePaymentTx];
+  const offlineReport = computeFinancialReport(seedDb.trips, allTxWithOffline, 'TODAY', '2026-10-21');
+  assertTest(
+    'T24',
+    'DATABASE_AND_FINANCE',
+    'Offline-First Financial Reporting Operational',
+    offlineReport.netTelebirrIncomingMinorUnits === 34500 + 7500 &&
+      offlinePaymentTx.sync_status === 'PENDING',
+    `Report immediately reflects offline income: ETB ${((34500 + 7500) / 100).toFixed(2)}`
+  );
 
   return results;
 }

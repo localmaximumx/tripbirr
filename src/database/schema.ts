@@ -76,6 +76,10 @@ export interface TripRecord {
   route_source?: 'OSRM_ROAD' | 'LOCAL_CORRIDOR_GRAPH' | 'ESTIMATED_ROAD' | null;
   created_at: string;
   updated_at: string;
+  // Cloud Synchronization fields
+  sync_status?: 'SYNCED' | 'PENDING' | 'FAILED';
+  synced_at?: string | null;
+  version?: number;
 }
 
 export interface TransactionRecord {
@@ -99,6 +103,10 @@ export interface TransactionRecord {
   description: string | null;
   created_at: string;
   updated_at: string;
+  // Cloud Synchronization fields
+  sync_status?: 'SYNCED' | 'PENDING' | 'FAILED';
+  synced_at?: string | null;
+  version?: number;
 }
 
 export interface SmsProcessingRecord {
@@ -111,6 +119,8 @@ export interface SmsProcessingRecord {
   processed_at: string;
   error_message: string | null;
   summary_note: string | null; // Redacted summary (never stores full raw inbox SMS)
+  sync_status?: 'SYNCED' | 'PENDING' | 'FAILED';
+  synced_at?: string | null;
 }
 
 export interface AppSettings {
@@ -135,4 +145,9 @@ export interface AppSettings {
   privacy_mask_sender_names?: boolean;
   privacy_mask_phones?: boolean;
   privacy_hide_popup_amounts?: boolean;
+  // Cloud Synchronization
+  cloud_sync_enabled?: boolean;
+  last_synced_at?: string | null;
+  cloud_user_id?: string | null;
+  cloud_user_email?: string | null;
 }
